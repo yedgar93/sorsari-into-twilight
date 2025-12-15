@@ -16,6 +16,13 @@
   starsCanvas.width = window.innerWidth;
   starsCanvas.height = window.innerHeight;
 
+  // Screen shake parameters
+  const shakeDuration = 1.5;
+  const shakeDelayDuration = 0.5;
+  const shakeIntensityStar = 1.5; // 1-2px for stars
+  const firstDropShakeEndTime = 95; // 1:35 - stop shaking at breakdown
+  const secondDropShakeEndTime = 192; // 3:12 - stop shaking
+
   // Create star layers with different speeds for parallax and depth-of-field
   const starLayers = [
     {
@@ -193,6 +200,32 @@
     starsCanvas.style.opacity = canvasOpacity;
     starsCanvas.style.filter =
       blurAmount > 0 ? `blur(${blurAmount}px)` : "none";
+
+    // Apply screen shake to stars canvas during drops
+    const isInFirstDrop =
+      currentTime >= firstDropTime && currentTime < firstDropShakeEndTime;
+    const isInSecondDrop =
+      currentTime >= secondDropTime && currentTime < secondDropShakeEndTime;
+
+    if (isInFirstDrop || isInSecondDrop) {
+      const timeSinceDropStart = isInFirstDrop
+        ? currentTime - firstDropTime
+        : currentTime - secondDropTime;
+      const cycleTime =
+        timeSinceDropStart % (shakeDuration + shakeDelayDuration);
+
+      if (cycleTime < shakeDuration) {
+        // In shake phase
+        const shakeOffsetX = (Math.random() - 0.5) * shakeIntensityStar;
+        const shakeOffsetY = (Math.random() - 0.5) * shakeIntensityStar;
+        starsCanvas.style.transform = `translate(${shakeOffsetX}px, ${shakeOffsetY}px)`;
+      } else {
+        // In delay phase
+        starsCanvas.style.transform = "translate(0, 0)";
+      }
+    } else {
+      starsCanvas.style.transform = "translate(0, 0)";
+    }
 
     // Create trail effect during drops by not fully clearing canvas
     if (isDropActive) {

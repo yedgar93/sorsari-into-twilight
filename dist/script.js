@@ -71,6 +71,41 @@ const maxHistoryLength = 300; // Store up to 10 seconds at 30fps
 let isPageVisible = true;
 let reducedFrameCounter = 0;
 
+// Screen shake on drops
+const firstDropTime = 31.5;
+const firstDropShakeEndTime = 95; // 1:35 - stop shaking at breakdown
+const secondDropTime = 127.03;
+const secondDropShakeEndTime = 192; // 3:12 - stop shaking
+
+let screenShakeActive = false;
+let shakeStartTime = 0;
+let shakeDelayStartTime = 0;
+let isInShakeDelay = false;
+const shakeDuration = 1.5; // seconds
+const shakeDelayDuration = 0.5; // seconds between shakes
+const shakeIntensityCenter = 4; // 3-5px for center model
+const shakeIntensityStar = 1.5; // 1-2px for stars
+
+function getScreenShakeOffset() {
+  if (!screenShakeActive) return { x: 0, y: 0 };
+
+  const currentTime = SORSARI.musicTime || 0;
+  const isInFirstDrop =
+    currentTime >= firstDropTime && currentTime < breakdownTime;
+  const isInSecondDrop = currentTime >= secondDropTime && currentTime < endTime;
+
+  if (!isInFirstDrop && !isInSecondDrop) {
+    screenShakeActive = false;
+    return { x: 0, y: 0 };
+  }
+
+  // Random jitter offset
+  const offsetX = (Math.random() - 0.5) * 2;
+  const offsetY = (Math.random() - 0.5) * 2;
+
+  return { x: offsetX, y: offsetY };
+}
+
 function initAudio() {
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -781,6 +816,35 @@ function init() {
       bloomPass.copyUniforms["opacity"].value = bloomIntensity;
     }
 
+    // Screen shake on drops
+    const isInFirstDrop =
+      currentTime >= firstDropTime && currentTime < firstDropShakeEndTime;
+    const isInSecondDrop =
+      currentTime >= secondDropTime && currentTime < secondDropShakeEndTime;
+
+    if (isInFirstDrop || isInSecondDrop) {
+      // Determine if we should be shaking or in delay
+      if (!screenShakeActive) {
+        screenShakeActive = true;
+        shakeStartTime = currentTime;
+        isInShakeDelay = false;
+      }
+
+      const timeSinceShakeStart = currentTime - shakeStartTime;
+      const cycleTime =
+        timeSinceShakeStart % (shakeDuration + shakeDelayDuration);
+
+      if (cycleTime < shakeDuration) {
+        // In shake phase
+        isInShakeDelay = false;
+      } else {
+        // In delay phase
+        isInShakeDelay = true;
+      }
+    } else {
+      screenShakeActive = false;
+    }
+
     // Camera roving - smooth circular motion that returns to origin
     // Only move camera if controls are not enabled AND audio is playing AND zoom-in is complete
     if (
@@ -857,6 +921,15 @@ function init() {
 
       invertFilterApplied = true;
       console.log("Inverted at 2:08");
+    }
+
+    // Apply screen shake to center model viewer during drops
+    if (!isInShakeDelay && (isInFirstDrop || isInSecondDrop)) {
+      const shakeOffsetX = (Math.random() - 0.5) * shakeIntensityCenter;
+      const shakeOffsetY = (Math.random() - 0.5) * shakeIntensityCenter;
+      threeContainer.style.transform = `translate(${shakeOffsetX}px, ${shakeOffsetY}px)`;
+    } else {
+      threeContainer.style.transform = "translate(0, 0)";
     }
 
     // Remove CSS invert filter at 2:40:06 (160.06 seconds)
