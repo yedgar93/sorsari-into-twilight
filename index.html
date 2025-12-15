@@ -188,21 +188,25 @@
     <!-- Main Three.js visualization -->
     <script src="dist/script.js"></script>
 
-    <!-- Easter eggs: type "yedgar" or "lol" to play SFX without stopping main track -->
+    <!-- Easter eggs: type "yedgar", "lol", or "cure" to play SFX without stopping main track -->
     <script>
       (function () {
-        // Lazy-loaded audio elements (only created when first triggered)
+        // Preload all SFX files at startup (no lazy loading)
         const triggers = {
-          yedgar: null,
-          lol: null,
-          cure: null,
+          yedgar: new Audio("F9Mog.wav"),
+          lol: new Audio("CDKefkaLaugh.wav"),
+          cure: new Audio("cure.wav"),
         };
 
-        const audioFiles = {
-          yedgar: "F9Mog.wav",
-          lol: "CDKefkaLaugh.wav",
-          cure: "cure.wav",
-        };
+        // Eagerly preload all SFX files at startup
+        Object.entries(triggers).forEach(([key, audio]) => {
+          audio.preload = "auto";
+          audio.crossOrigin = "anonymous";
+          audio.loop = false;
+          // Trigger load immediately
+          audio.load();
+          console.log("Preloading SFX:", key);
+        });
 
         // Web Audio fallback for WAVs that the <audio> element can't play
         let sfxAudioCtx;
@@ -233,15 +237,6 @@
 
         // Do not interfere with the main audio; just play concurrently
         function playSfx(triggerKey, name) {
-          // Lazy load audio element on first trigger
-          if (!triggers[triggerKey]) {
-            triggers[triggerKey] = new Audio(audioFiles[triggerKey]);
-            triggers[triggerKey].preload = "auto";
-            triggers[triggerKey].crossOrigin = "anonymous";
-            triggers[triggerKey].loop = false;
-            console.log("Lazy loaded SFX:", audioFiles[triggerKey]);
-          }
-
           const audio = triggers[triggerKey];
           try {
             audio.currentTime = 0;
