@@ -10,6 +10,40 @@
   "use strict";
 
   // =====================
+  // MOBILE DETECTION & COMPRESSED MODELS
+  // =====================
+  const isMobile =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+
+  console.log(`[Model Viewer] Device Type: ${isMobile ? "MOBILE" : "DESKTOP"}`);
+
+  // Switch to compressed models on mobile for better performance
+  if (isMobile) {
+    const centerModelViewer = document.querySelector("#model-viewer");
+    const terrorModelViewer = document.querySelector("#terror-model-viewer");
+
+    if (centerModelViewer) {
+      centerModelViewer.src = "base_basic_shaded-compressed.glb";
+      console.log(
+        "[Model Viewer] Center Model: base_basic_shaded-compressed.glb (mobile)"
+      );
+    }
+    if (terrorModelViewer) {
+      terrorModelViewer.src = "TERRORbase_basic_shaded-compressed.glb";
+      console.log(
+        "[Model Viewer] TERROR Model: TERRORbase_basic_shaded-compressed.glb (mobile)"
+      );
+    }
+  } else {
+    console.log("[Model Viewer] Center Model: base_basic_shaded.glb (desktop)");
+    console.log(
+      "[Model Viewer] TERROR Model: TERRORbase_basic_shaded.glb (desktop)"
+    );
+  }
+
+  // =====================
   // CENTER MODEL CAMERA
   // =====================
   const modelViewer = document.querySelector("#model-viewer");
@@ -287,11 +321,7 @@
   // =====================
   const terrorModelViewer = document.querySelector("#terror-model-viewer");
 
-  // Detect mobile and adjust rotation speed
-  const isMobile =
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    );
+  // Adjust rotation speed on mobile (isMobile already declared at top)
   if (isMobile) {
     // On mobile, reduce rotation speed to 15deg/sec (was 45deg/sec)
     // This reduces GPU load while keeping the model animated

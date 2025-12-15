@@ -10,7 +10,8 @@
   "use strict";
 
   const starsCanvas = document.getElementById("stars-canvas");
-  const starsCtx = starsCanvas.getContext("2d");
+  // Disable alpha channel for better performance (stars don't need transparency)
+  const starsCtx = starsCanvas.getContext("2d", { alpha: false });
 
   // Set initial canvas size
   starsCanvas.width = window.innerWidth;
@@ -341,8 +342,13 @@
           starsCtx.lineWidth = layer.size * depthScale * 1.5;
           starsCtx.beginPath();
           normalStars.forEach((star) => {
-            starsCtx.moveTo(star.drawX, star.drawY);
-            starsCtx.lineTo(star.drawX - star.vx * 8, star.drawY - star.vy * 8);
+            // Use integer coordinates to avoid sub-pixel rendering overhead
+            const x = Math.floor(star.drawX);
+            const y = Math.floor(star.drawY);
+            const trailX = Math.floor(star.drawX - star.vx * 8);
+            const trailY = Math.floor(star.drawY - star.vy * 8);
+            starsCtx.moveTo(x, y);
+            starsCtx.lineTo(trailX, trailY);
           });
           starsCtx.stroke();
         } else {
@@ -350,14 +356,11 @@
           starsCtx.fillStyle = `rgba(255, 255, 255, ${layer.opacity})`;
           starsCtx.beginPath();
           normalStars.forEach((star) => {
-            starsCtx.moveTo(star.drawX + layer.size * depthScale, star.drawY);
-            starsCtx.arc(
-              star.drawX,
-              star.drawY,
-              layer.size * depthScale,
-              0,
-              Math.PI * 2
-            );
+            // Use integer coordinates to avoid sub-pixel rendering overhead
+            const x = Math.floor(star.drawX);
+            const y = Math.floor(star.drawY);
+            starsCtx.moveTo(x + layer.size * depthScale, y);
+            starsCtx.arc(x, y, layer.size * depthScale, 0, Math.PI * 2);
           });
           starsCtx.fill();
         }
@@ -374,13 +377,21 @@
           starsCtx.strokeStyle = `rgba(255, 255, 255, ${finalOpacity})`;
           starsCtx.lineWidth = finalSize * 1.5;
           starsCtx.beginPath();
-          starsCtx.moveTo(star.drawX, star.drawY);
-          starsCtx.lineTo(star.drawX - star.vx * 8, star.drawY - star.vy * 8);
+          // Use integer coordinates to avoid sub-pixel rendering overhead
+          const x = Math.floor(star.drawX);
+          const y = Math.floor(star.drawY);
+          const trailX = Math.floor(star.drawX - star.vx * 8);
+          const trailY = Math.floor(star.drawY - star.vy * 8);
+          starsCtx.moveTo(x, y);
+          starsCtx.lineTo(trailX, trailY);
           starsCtx.stroke();
         } else {
           starsCtx.fillStyle = `rgba(255, 255, 255, ${finalOpacity})`;
           starsCtx.beginPath();
-          starsCtx.arc(star.drawX, star.drawY, finalSize, 0, Math.PI * 2);
+          // Use integer coordinates to avoid sub-pixel rendering overhead
+          const x = Math.floor(star.drawX);
+          const y = Math.floor(star.drawY);
+          starsCtx.arc(x, y, finalSize, 0, Math.PI * 2);
           starsCtx.fill();
         }
       });

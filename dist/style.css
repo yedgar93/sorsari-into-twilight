@@ -166,6 +166,9 @@ model-viewer::part(bar) {
   z-index: 0;
   pointer-events: none;
   opacity: 0.65;
+  /* GPU acceleration for screen shake transforms */
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 #three-blur-wrapper {
@@ -182,7 +185,10 @@ model-viewer::part(bar) {
   opacity: 0.55;
   /* Blur for depth-of-field effect - triangles appear in far background */
   filter: blur(2px);
-  transform: scale(1.25);
+  /* GPU acceleration for screen shake transforms */
+  will-change: transform;
+  transform: translateZ(0);
+
   /* filter: invert(100%); */
 }
 

@@ -106,6 +106,27 @@ function getScreenShakeOffset() {
   return { x: offsetX, y: offsetY };
 }
 
+// Web Worker for audio analysis (runs in background thread)
+let audioWorker = null;
+let workerBass = 0;
+let workerDrums = 0;
+let workerInstruments = 0;
+
+function initAudioWorker() {
+  // Create worker if supported
+  if (typeof Worker !== "undefined") {
+    audioWorker = new Worker("dist/audio-worker.js");
+
+    // Receive analysis results from worker
+    audioWorker.onmessage = (event) => {
+      const { bass, drums, instruments } = event.data;
+      workerBass = bass;
+      workerDrums = drums;
+      workerInstruments = instruments;
+    };
+  }
+}
+
 function initAudio() {
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -222,120 +243,54 @@ function initAudio() {
   };
 }
 
-function getAudioData() {
-  if (!audioReactive || !analyser) return 0;
-
-  analyser.getByteFrequencyData(dataArray);
-
-  // Get bass frequencies (0-250Hz roughly corresponds to first 8 bins)
-  let bass = 0;
-  for (let i = 0; i < 8; i++) {
-    bass += dataArray[i];
-  }
-  bass = bass / (8 * 255); // Normalize to 0-1
-
-  // Smooth the bass level
-  bassLevel = bassLevel * 0.7 + bass * 0.3;
-
-  // Store in history buffer for timing offset
-  bassHistory.push(bassLevel);
-  if (bassHistory.length > maxHistoryLength) {
-    bassHistory.shift(); // Remove oldest entry
-  }
-
-  // Apply timing offset by reading from history
-  // Positive offset = delay (read from past), Negative offset = advance (read current/recent)
-  const offsetFrames = Math.round(-audioTimingOffset * 30); // Convert seconds to frames (30fps), invert sign
-  let historyIndex = bassHistory.length - 1 - offsetFrames;
-
-  // Clamp to valid range
-  if (historyIndex < 0) historyIndex = 0;
-  if (historyIndex >= bassHistory.length) historyIndex = bassHistory.length - 1;
-
-  return bassHistory[historyIndex] || bassLevel;
-}
-
-// Get drums bass data for kick detection
-function getDrumsBass() {
-  // If drums track not available, fall back to main audio bass
-  if (!drumsElement || !drumsAnalyser) {
-    return getAudioData();
-  }
-
-  if (!audioReactive) return 0;
-
-  drumsAnalyser.getByteFrequencyData(drumsDataArray);
-
-  // Get bass frequencies from drums track (0-250Hz roughly corresponds to first 8 bins)
-  let drumsBass = 0;
-  for (let i = 0; i < 8; i++) {
-    drumsBass += drumsDataArray[i];
-  }
-  drumsBass = drumsBass / (8 * 255); // Normalize to 0-1
-
-  // Smooth the drums bass level
-  drumsBassLevel = drumsBassLevel * 0.7 + drumsBass * 0.3;
-
-  return drumsBassLevel;
-}
-
-// Get instruments data for star pulsing (mid-high frequencies)
-function getInstrumentsLevel() {
-  if (!instrumentsElement || !instrumentsAnalyser) {
-    return 0;
-  }
-
-  if (!audioReactive) return 0;
-
-  instrumentsAnalyser.getByteFrequencyData(instrumentsDataArray);
-
-  // Get mid-high frequencies (bins 8-32 for melodic content)
-  let instruments = 0;
-  for (let i = 8; i < 32; i++) {
-    instruments += instrumentsDataArray[i];
-  }
-  instruments = instruments / (24 * 255); // Normalize to 0-1
-
-  // Smooth the instruments level
-  instrumentsLevel = instrumentsLevel * 0.6 + instruments * 0.4;
-
-  return instrumentsLevel;
-}
+// Audio analysis is now handled by Web Worker (audio-worker.js)
+// These functions are kept for reference but are no longer called
 
 // Expose instruments level via SORSARI namespace for star animation (throttled to 30fps)
 SORSARI.getInstrumentsLevel = getInstrumentsLevelThrottled;
 
-// Audio analysis throttling - run at 30fps instead of 60fps
+// Audio analysis frame counter for worker communication
 let audioAnalysisFrameCount = 0;
-let cachedBassLevel = 0;
-let cachedInstrumentsLevel = 0;
 
-// Throttled versions of audio functions
-function getAudioDataThrottled() {
+// Send audio data to worker for analysis
+function sendAudioDataToWorker() {
+  if (!audioWorker) return;
+
   audioAnalysisFrameCount++;
-  // Only analyze every 2 frames (30fps instead of 60fps)
-  if (audioAnalysisFrameCount % 2 === 0) {
-    cachedBassLevel = getAudioData();
-  }
-  return cachedBassLevel;
+
+  // Get frequency data from analysers
+  analyser.getByteFrequencyData(dataArray);
+  drumsAnalyser.getByteFrequencyData(drumsDataArray);
+  instrumentsAnalyser.getByteFrequencyData(instrumentsDataArray);
+
+  // Send to worker for analysis
+  audioWorker.postMessage({
+    bassData: dataArray,
+    drumsData: drumsDataArray,
+    instrumentsData: instrumentsDataArray,
+    frameCount: audioAnalysisFrameCount,
+  });
 }
 
-// Drums bass is NOT throttled - needs to run every frame for kick detection
+// Get bass level from worker (throttled to 30fps by worker)
+function getAudioDataThrottled() {
+  return workerBass;
+}
+
+// Get drums level from worker (every frame for kick detection)
 function getDrumsBasThrottled() {
-  return getDrumsBass();
+  return workerDrums;
 }
 
+// Get instruments level from worker (throttled to 30fps by worker)
 function getInstrumentsLevelThrottled() {
-  // Reuse the same frame counter as main audio analysis
-  if (audioAnalysisFrameCount % 2 === 0) {
-    cachedInstrumentsLevel = getInstrumentsLevel();
-  }
-  return cachedInstrumentsLevel;
+  return workerInstruments;
 }
 
 function init() {
   // Initialize audio
   initAudio();
+  initAudioWorker();
 
   const root = new THREERoot({
     createCameraControls: false,
@@ -653,6 +608,11 @@ function init() {
 
     animation.time += 1 / 30;
     frameCount++;
+
+    // Send audio data to worker for analysis (every frame)
+    if (audioReactive && audioElement && !audioElement.paused) {
+      sendAudioDataToWorker();
+    }
 
     // Only increment camera time if audio is playing
     if (audioReactive && audioElement && !audioElement.paused) {
