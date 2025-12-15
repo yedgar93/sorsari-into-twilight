@@ -612,6 +612,28 @@ function init() {
   const parallaxMaxShift = 3.275; // Maximum pixels to shift (creates breathing effect)
   const parallaxSensitivity = 0.476; // How much audio affects the shift (0-1)
 
+  // Model viewer chromatic aberration settings
+  const modelViewerWrapper = document.getElementById("model-viewer-wrapper");
+
+  // First drop chromatic aberration (1:31.85 to 1:35.8)
+  const firstDropChromaticStartTime = 31.85; // 1:31.85 - first drop
+  const firstDropChromaticEndTime = 95.8; // 1:35.8 - breakdown
+  const firstDropChromaticStartAmount = 5; // Start at 15px
+  const firstDropChromaticMaxAmount = 10; // Max 30px
+
+  // Final chromatic aberration (3:12 onwards)
+  const finalChromaticStartTime = 191.72; // 3:12 - start chromatic aberration
+  const finalChromaticMaxAmount = 20; // Max pixel offset for chromatic aberration
+
+  // Track current brightness for filter combination
+  let currentBrightness = 0.1;
+
+  // Triangles canvas brightness control
+  const trianglesStartValue = 0.3; // Start at 0.3 brightness
+  const trianglesDelayStart = 15.5; // Stay at 0.3 brightness until 15.5 seconds
+  const trianglesEndTime = 27.4; // Reach full brightness by 27.4 seconds
+  const trianglesEndValue = 1.0; // Full brightness
+
   // Peak detection for parallax
   let parallaxPeakLevel = 0;
   let parallaxPeakDecay = 0.9; // How fast the peak decays (0.9-0.99)
@@ -993,6 +1015,82 @@ function init() {
       console.log("Inverted back at 2:40:06");
     }
 
+    // Apply chromatic aberration to model viewer (two phases)
+    if (modelViewerWrapper) {
+      let chromaticAmount = 0;
+
+      // Phase 1: First drop (0:31.85 to 1:03) - STOP at 1:03
+      if (currentTime >= firstDropChromaticStartTime && currentTime < 63) {
+        const dropProgress =
+          (currentTime - firstDropChromaticStartTime) /
+          (firstDropChromaticEndTime - firstDropChromaticStartTime);
+        // Start at 5px, increase to 10px
+        chromaticAmount =
+          firstDropChromaticStartAmount +
+          dropProgress *
+            (firstDropChromaticMaxAmount - firstDropChromaticStartAmount);
+      }
+      // Fade out between 1:03 and 1:04 (63-64 seconds)
+      else if (currentTime >= 63 && currentTime < 64) {
+        // Calculate what the chromatic amount would be at 1:03
+        const dropProgress =
+          (63 - firstDropChromaticStartTime) /
+          (firstDropChromaticEndTime - firstDropChromaticStartTime);
+        const startAmount =
+          firstDropChromaticStartAmount +
+          dropProgress *
+            (firstDropChromaticMaxAmount - firstDropChromaticStartAmount);
+
+        // Now fade from that amount to 0
+        const fadeProgress = (currentTime - 63) / 1.0; // Fade over 1 second
+        chromaticAmount = startAmount * (1 - Math.min(1, fadeProgress));
+      }
+      // Phase 2: Second segment (1:50 to 2:40) - same params as first drop
+      else if (currentTime >= 110 && currentTime < 160) {
+        const segmentProgress = (currentTime - 110) / (160 - 110);
+        chromaticAmount =
+          firstDropChromaticStartAmount +
+          segmentProgress *
+            (firstDropChromaticMaxAmount - firstDropChromaticStartAmount);
+      }
+      // Fade out second segment (2:40 to 2:54) - 14 seconds
+      else if (currentTime >= 160 && currentTime < 174) {
+        const fadeProgress = (currentTime - 160) / 14; // Fade over 14 seconds
+        chromaticAmount = firstDropChromaticMaxAmount * (1 - fadeProgress);
+      }
+      // Phase 3: Final section (3:12 onwards)
+      else if (currentTime >= finalChromaticStartTime) {
+        const songEndTime = 240; // ~4:00 (end of song)
+        const chromaticProgress =
+          (currentTime - finalChromaticStartTime) /
+          (songEndTime - finalChromaticStartTime);
+        // Clamp to 0-1
+        const clampedProgress = Math.min(1, Math.max(0, chromaticProgress));
+        // Exponential curve for dramatic intensification
+        const intensity = Math.pow(clampedProgress, 1.5);
+        chromaticAmount = intensity * finalChromaticMaxAmount;
+      }
+
+      // Extract current brightness from the filter (set by model-animations.js)
+      const currentFilter = modelViewerWrapper.style.filter;
+      let brightness = 1.0; // Default to full brightness
+      if (currentFilter && currentFilter.includes("brightness")) {
+        const match = currentFilter.match(/brightness\(([\d.]+)\)/);
+        if (match) {
+          brightness = parseFloat(match[1]);
+        }
+      }
+
+      // Apply chromatic aberration filter combined with brightness
+      if (chromaticAmount > 0) {
+        const filterValue = `brightness(${brightness}) drop-shadow(${chromaticAmount}px 0px 0px rgba(255, 0, 0, 0.3)) drop-shadow(-${chromaticAmount}px 0px 0px rgba(0, 0, 255, 0.3))`;
+        modelViewerWrapper.style.filter = filterValue;
+      } else {
+        // Let model-animations.js handle the brightness filter
+        modelViewerWrapper.style.filter = `brightness(${brightness})`;
+      }
+    }
+
     // Blur triangle canvas wrapper from 2:58 to 3:35 (178s to 215s)
     let triangleBlur = 0;
     if (currentTime >= triangleBlurStart && currentTime <= triangleBlurEnd) {
@@ -1007,6 +1105,32 @@ function init() {
     if (threeBlurWrapper) {
       threeBlurWrapper.style.filter =
         triangleBlur > 0 ? "blur(" + triangleBlur + "px)" : "none";
+    }
+
+    // Triangles canvas brightness animation (stay at 0.3 until 31.5s, then fade to 1.0 by 32.4s)
+    let trianglesBrightness = trianglesStartValue;
+    if (currentTime >= trianglesDelayStart && currentTime < trianglesEndTime) {
+      const trianglesProgress =
+        (currentTime - trianglesDelayStart) /
+        (trianglesEndTime - trianglesDelayStart);
+      trianglesBrightness =
+        trianglesStartValue +
+        (trianglesEndValue - trianglesStartValue) * trianglesProgress;
+    } else if (currentTime >= trianglesEndTime) {
+      trianglesBrightness = trianglesEndValue;
+    }
+
+    // Apply brightness filter to triangles container (combine with existing filters)
+    if (threeContainer) {
+      const currentFilter = threeContainer.style.filter || "none";
+      let filterValue = `brightness(${trianglesBrightness})`;
+
+      // Preserve existing filters (invert, blur, etc.)
+      if (currentFilter !== "none" && !currentFilter.includes("brightness")) {
+        filterValue = `${filterValue} ${currentFilter}`;
+      }
+
+      threeContainer.style.filter = filterValue;
     }
 
     // Fade out triangle canvas from 3:05 to 3:35 (185s to 215s)

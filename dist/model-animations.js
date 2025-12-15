@@ -180,7 +180,8 @@
   // CENTER MODEL BRIGHTNESS
   // =====================
   const brightnessStartValue = 0.1; // Start at 0.1 brightness
-  const brightnessEndTime = 11.5; // Reach full brightness by 11.5 seconds
+  const brightnessDelayStart = 31.5; // Stay at 0.1 brightness until 3 seconds
+  const brightnessEndTime = 32.4; // Reach full brightness by 11.5 seconds
   const brightnessEndValue = 1.0; // Full brightness
 
   // Throttle zoom animation to 30fps (every other frame)
@@ -212,13 +213,20 @@
     }
     modelViewer.style.opacity = opacity;
 
-    // Brightness animation (0.1 to 1.0 over first 0.07 seconds)
-    let brightness = brightnessEndValue;
-    if (currentTime < brightnessEndTime) {
-      const brightnessProgress = currentTime / brightnessEndTime;
+    // Brightness animation (stay at 0.1 until 3s, then fade to 1.0 by 11.5s)
+    let brightness = brightnessStartValue;
+    if (
+      currentTime >= brightnessDelayStart &&
+      currentTime < brightnessEndTime
+    ) {
+      const brightnessProgress =
+        (currentTime - brightnessDelayStart) /
+        (brightnessEndTime - brightnessDelayStart);
       brightness =
         brightnessStartValue +
         (brightnessEndValue - brightnessStartValue) * brightnessProgress;
+    } else if (currentTime >= brightnessEndTime) {
+      brightness = brightnessEndValue;
     }
     modelViewerWrapper.style.filter = `brightness(${brightness})`;
 

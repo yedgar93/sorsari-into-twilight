@@ -235,79 +235,6 @@
     star.baseZ = star.z;
   });
 
-  // Helper function to draw stars with chromatic aberration effect
-  function drawStarWithChromatic(
-    x,
-    y,
-    size,
-    opacity,
-    offsetAmount,
-    isTrail,
-    vx,
-    vy
-  ) {
-    if (!chromaticAberrationEnabled || offsetAmount === 0) {
-      // Draw normally without chromatic aberration
-      if (isTrail) {
-        starsCtx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
-        starsCtx.beginPath();
-        starsCtx.moveTo(x, y);
-        starsCtx.lineTo(x - vx * 8, y - vy * 8);
-        starsCtx.stroke();
-      } else {
-        starsCtx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-        starsCtx.beginPath();
-        starsCtx.arc(x, y, size, 0, Math.PI * 2);
-        starsCtx.fill();
-      }
-      return;
-    }
-
-    // Draw with chromatic aberration (3 color channels offset)
-    const offset = offsetAmount;
-
-    if (isTrail) {
-      // Red channel (offset right)
-      starsCtx.strokeStyle = `rgba(255, 0, 0, ${opacity * 0.4})`;
-      starsCtx.beginPath();
-      starsCtx.moveTo(x + offset, y);
-      starsCtx.lineTo(x + offset - vx * 8, y - vy * 8);
-      starsCtx.stroke();
-
-      // Green channel (no offset)
-      starsCtx.strokeStyle = `rgba(0, 255, 0, ${opacity * 0.4})`;
-      starsCtx.beginPath();
-      starsCtx.moveTo(x, y);
-      starsCtx.lineTo(x - vx * 8, y - vy * 8);
-      starsCtx.stroke();
-
-      // Blue channel (offset left)
-      starsCtx.strokeStyle = `rgba(0, 0, 255, ${opacity * 0.4})`;
-      starsCtx.beginPath();
-      starsCtx.moveTo(x - offset, y);
-      starsCtx.lineTo(x - offset - vx * 8, y - vy * 8);
-      starsCtx.stroke();
-    } else {
-      // Red channel (offset right)
-      starsCtx.fillStyle = `rgba(255, 0, 0, ${opacity * 0.4})`;
-      starsCtx.beginPath();
-      starsCtx.arc(x + offset, y, size, 0, Math.PI * 2);
-      starsCtx.fill();
-
-      // Green channel (no offset)
-      starsCtx.fillStyle = `rgba(0, 255, 0, ${opacity * 0.4})`;
-      starsCtx.beginPath();
-      starsCtx.arc(x, y, size, 0, Math.PI * 2);
-      starsCtx.fill();
-
-      // Blue channel (offset left)
-      starsCtx.fillStyle = `rgba(0, 0, 255, ${opacity * 0.4})`;
-      starsCtx.beginPath();
-      starsCtx.arc(x - offset, y, size, 0, Math.PI * 2);
-      starsCtx.fill();
-    }
-  }
-
   // Animate stars
   function animateStars() {
     const currentTime = SORSARI.musicTime || 0;
@@ -554,21 +481,81 @@
       // Batch render normal (non-pulsing) stars directly to main canvas
       if (normalStars.length > 0) {
         if (chromaticOffset !== 0) {
-          // Draw with chromatic aberration (individual stars)
-          normalStars.forEach((star) => {
-            const x = Math.floor(star.drawX);
-            const y = Math.floor(star.drawY);
-            drawStarWithChromatic(
-              x,
-              y,
-              layer.size * depthScale,
-              layer.opacity,
-              chromaticOffset,
-              isDropActive,
-              star.vx,
-              star.vy
-            );
-          });
+          // Draw with chromatic aberration (BATCHED for performance)
+          const offset = chromaticOffset;
+          const size = layer.size * depthScale;
+
+          if (isDropActive) {
+            // Batched trails with chromatic aberration
+            starsCtx.lineWidth = size * 1.5;
+
+            // Red channel (offset right)
+            starsCtx.strokeStyle = `rgba(255, 0, 0, ${layer.opacity * 0.4})`;
+            starsCtx.beginPath();
+            normalStars.forEach((star) => {
+              const x = Math.floor(star.drawX);
+              const y = Math.floor(star.drawY);
+              starsCtx.moveTo(x + offset, y);
+              starsCtx.lineTo(x + offset - star.vx * 8, y - star.vy * 8);
+            });
+            starsCtx.stroke();
+
+            // Green channel (no offset)
+            starsCtx.strokeStyle = `rgba(0, 255, 0, ${layer.opacity * 0.4})`;
+            starsCtx.beginPath();
+            normalStars.forEach((star) => {
+              const x = Math.floor(star.drawX);
+              const y = Math.floor(star.drawY);
+              starsCtx.moveTo(x, y);
+              starsCtx.lineTo(x - star.vx * 8, y - star.vy * 8);
+            });
+            starsCtx.stroke();
+
+            // Blue channel (offset left)
+            starsCtx.strokeStyle = `rgba(0, 0, 255, ${layer.opacity * 0.4})`;
+            starsCtx.beginPath();
+            normalStars.forEach((star) => {
+              const x = Math.floor(star.drawX);
+              const y = Math.floor(star.drawY);
+              starsCtx.moveTo(x - offset, y);
+              starsCtx.lineTo(x - offset - star.vx * 8, y - star.vy * 8);
+            });
+            starsCtx.stroke();
+          } else {
+            // Batched dots with chromatic aberration
+            // Red channel (offset right)
+            starsCtx.fillStyle = `rgba(255, 0, 0, ${layer.opacity * 0.4})`;
+            starsCtx.beginPath();
+            normalStars.forEach((star) => {
+              const x = Math.floor(star.drawX);
+              const y = Math.floor(star.drawY);
+              starsCtx.moveTo(x + offset + size, y);
+              starsCtx.arc(x + offset, y, size, 0, Math.PI * 2);
+            });
+            starsCtx.fill();
+
+            // Green channel (no offset)
+            starsCtx.fillStyle = `rgba(0, 255, 0, ${layer.opacity * 0.4})`;
+            starsCtx.beginPath();
+            normalStars.forEach((star) => {
+              const x = Math.floor(star.drawX);
+              const y = Math.floor(star.drawY);
+              starsCtx.moveTo(x + size, y);
+              starsCtx.arc(x, y, size, 0, Math.PI * 2);
+            });
+            starsCtx.fill();
+
+            // Blue channel (offset left)
+            starsCtx.fillStyle = `rgba(0, 0, 255, ${layer.opacity * 0.4})`;
+            starsCtx.beginPath();
+            normalStars.forEach((star) => {
+              const x = Math.floor(star.drawX);
+              const y = Math.floor(star.drawY);
+              starsCtx.moveTo(x - offset + size, y);
+              starsCtx.arc(x - offset, y, size, 0, Math.PI * 2);
+            });
+            starsCtx.fill();
+          }
         } else if (isDropActive) {
           // Draw trails for normal stars (no chromatic aberration)
           starsCtx.strokeStyle = `rgba(255, 255, 255, ${layer.opacity})`;
