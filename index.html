@@ -48,6 +48,13 @@
   <body>
     <!-- Debug Window (hidden by default) -->
     <div id="debug-window" class="hidden">
+      <button
+        id="debug-toggle-btn"
+        class="debug-toggle-arrow"
+        aria-label="Toggle debug window"
+      >
+        ◀
+      </button>
       <div id="debug-header">
         Debug Controls
         <button id="debug-close-btn" aria-label="Close debug window">×</button>
@@ -125,9 +132,15 @@
     <!-- Debug window controls -->
     <script src="dist/debug.js"></script>
 
+    <!-- SNES Intro Stars -->
+    <script src="dist/snes-intro.js"></script>
+
     <!-- Background layers -->
-    <div id="stars-canvas-wrapper">
-      <canvas id="stars-canvas"></canvas>
+    <!-- Stars fade wrapper - CSS-based fade from 3:20 to 3:46.5 as backup -->
+    <div id="stars-fade-wrapper">
+      <div id="stars-canvas-wrapper">
+        <canvas id="stars-canvas"></canvas>
+      </div>
     </div>
     <div id="three-blur-wrapper">
       <div id="three-container"></div>

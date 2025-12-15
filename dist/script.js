@@ -29,7 +29,7 @@ const CONFIG = {
 
   // Global FPS controller - scales down rendering frequency
   // 1.0 = 60fps, 0.5 = 30fps, 0.33 = 20fps, 0.25 = 15fps
-  fpsScale: 0.8,
+  fpsScale: 0.77,
 };
 
 // Audio setup
@@ -255,6 +255,8 @@ function initAudio() {
     if (instrumentsElement) {
       instrumentsElement.currentTime = seconds;
     }
+    // Also update SORSARI.musicTime immediately so all animators sync
+    SORSARI.musicTime = seconds;
     console.log("Skipped all tracks to:", seconds, "seconds");
   };
 }

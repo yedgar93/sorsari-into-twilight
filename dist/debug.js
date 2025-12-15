@@ -73,6 +73,15 @@
     });
   }
 
+  // Toggle button handler (collapse/expand)
+  const toggleBtn = document.getElementById("debug-toggle-btn");
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      debugWindow.classList.toggle("collapsed");
+    });
+  }
+
   // Make debug window draggable
   const debugWindow = document.getElementById("debug-window");
   const debugHeader = document.getElementById("debug-header");
@@ -455,6 +464,50 @@
   } else {
     trySetupCanvasToggles();
   }
+
+  // Stars fade-out backup (3:20 to 3:46.5)
+  // Uses clip-path to shrink the visible area instead of opacity
+  // Wait for the element to exist before setting up the fade
+  function initStarsFade() {
+    const starsFadeWrapperElement =
+      document.getElementById("stars-fade-wrapper");
+    if (!starsFadeWrapperElement) {
+      // Element doesn't exist yet, try again in 100ms
+      setTimeout(initStarsFade, 100);
+      return;
+    }
+
+    let lastLoggedTime = -1;
+    setInterval(() => {
+      // Use audioElement.currentTime as the source of truth
+      let currentTime = 0;
+      if (SORSARI.audioElement) {
+        currentTime = SORSARI.audioElement.currentTime;
+      } else if (SORSARI.musicTime) {
+        currentTime = SORSARI.musicTime;
+      }
+
+      const fadeStartTime = 200; // 3:20
+      const fadeEndTime = 226.5; // 3:46.5
+
+      if (currentTime >= fadeStartTime && currentTime < fadeEndTime) {
+        // Fade opacity from 1 to 0
+        const fadeProgress =
+          (currentTime - fadeStartTime) / (fadeEndTime - fadeStartTime);
+        const opacity = 1 - fadeProgress;
+        starsFadeWrapperElement.style.opacity = opacity;
+      } else if (currentTime >= fadeEndTime) {
+        // Fully faded out
+        starsFadeWrapperElement.style.opacity = 0;
+      } else {
+        // Before fade starts - fully visible
+        starsFadeWrapperElement.style.opacity = 1;
+      }
+    }, 16); // Update every ~16ms (60fps)
+  }
+
+  // Start trying to initialize the fade
+  initStarsFade();
 
   // Enable device motion function (for iOS 13+)
   SORSARI.enableDeviceMotion = async function () {

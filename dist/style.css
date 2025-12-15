@@ -166,6 +166,7 @@ img {
   max-width: 90vw;
   max-height: calc(100vh - 40px);
   box-shadow: 0 4px 20px rgba(118, 99, 145, 0.3);
+  opacity: 0.63;
   touch-action: none; /* Prevent default touch behaviors during drag */
 }
 
@@ -257,6 +258,53 @@ img {
   display: none;
 }
 
+/* Debug toggle arrow button */
+.debug-toggle-arrow {
+  position: absolute;
+  left: -30px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: rgba(118, 99, 145, 0.9);
+  border: 1px solid #766391;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 1001;
+}
+
+.debug-toggle-arrow:hover {
+  background: rgba(118, 99, 145, 1);
+  box-shadow: 0 0 10px rgba(118, 99, 145, 0.6);
+}
+
+/* Arrow rotation when collapsed */
+#debug-window.collapsed .debug-toggle-arrow {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+/* Collapsed state - hide content and header */
+#debug-window.collapsed #debug-header,
+#debug-window.collapsed #debug-content {
+  display: none;
+}
+
+/* Collapsed state - adjust window size */
+#debug-window.collapsed {
+  min-width: auto;
+  width: auto;
+  min-height: auto;
+  height: auto;
+  padding: 0;
+}
+
 /* Hue slider section */
 .debug-slider-section {
   margin-top: 15px;
@@ -327,6 +375,19 @@ model-viewer::part(bar) {
 }
 
 /* Background layers */
+/* Stars fade wrapper - JavaScript-controlled fade (3:20 to 3:46.5) */
+#stars-fade-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.016s linear; /* Smooth 60fps updates */
+}
+
 #stars-canvas-wrapper {
   position: fixed;
   top: 0;
@@ -362,14 +423,14 @@ model-viewer::part(bar) {
   height: 100%;
   z-index: 1;
   pointer-events: none;
+  opacity: 0.66;
 }
 
 #three-container {
-  opacity: 0.55;
   /* Blur for depth-of-field effect - triangles appear in far background */
   filter: blur(2px);
   /* GPU acceleration for screen shake transforms */
-  will-change: transform;
+  will-change: transform, opacity, filter;
   transform: translateZ(0);
 
   /* filter: invert(100%); */
@@ -544,11 +605,12 @@ model-viewer::part(bar) {
   #debug-window {
     top: 5px;
     right: 5px;
-    min-width: 140px;
-    max-width: 50vw;
+    min-width: 130px;
+    max-width: 44vw;
     font-size: 10px;
     border-width: 1px;
     border-radius: 6px;
+    opacity: 0.63;
   }
 
   #debug-header {

@@ -115,9 +115,9 @@
   const fadeOutDuration = fadeOutEndTime - fadeOutStartTime;
 
   // Final blur and fade out
-  const finalBlurFadeStart = 214.5;
-  const finalBlurFadeDuration = 15;
-  const finalBlurFadeEnd = finalBlurFadeStart + finalBlurFadeDuration;
+  const finalBlurFadeStart = 214.5; // 3:34.5
+  const finalBlurFadeDuration = 12.5; // Fade over 12.5 seconds to end at 3:47
+  const finalBlurFadeEnd = finalBlurFadeStart + finalBlurFadeDuration; // 227 seconds (3:47)
 
   // Chromatic aberration settings
   let chromaticAberrationEnabled = true;
@@ -413,31 +413,31 @@
       blinkingStarsCanvas.style.opacity = "0";
     }
 
-    // Handle opacity fade out before second drop and snap back
+    // Final blur and fade out (takes priority over earlier fades)
     let canvasOpacity = 1.0;
-
-    if (currentTime >= fadeOutStartTime && currentTime < fadeOutEndTime) {
-      const fadeProgress = (currentTime - fadeOutStartTime) / fadeOutDuration;
-      canvasOpacity = 1.0 - fadeProgress;
-    } else if (
-      currentTime >= fadeOutEndTime &&
-      currentTime < secondDropSnapTime
-    ) {
-      canvasOpacity = 0.0;
-    } else if (currentTime >= secondDropSnapTime) {
-      canvasOpacity = 1.0;
-    }
-
-    // Final blur and fade out
     let blurAmount = 0;
-    if (currentTime >= finalBlurFadeStart && currentTime <= finalBlurFadeEnd) {
+
+    if (currentTime >= finalBlurFadeStart && currentTime < finalBlurFadeEnd) {
       const fadeProgress =
         (currentTime - finalBlurFadeStart) / finalBlurFadeDuration;
       canvasOpacity = 1.0 - fadeProgress;
       blurAmount = fadeProgress * 20;
-    } else if (currentTime > finalBlurFadeEnd) {
+    } else if (currentTime >= finalBlurFadeEnd) {
       canvasOpacity = 0;
       blurAmount = 20;
+    } else {
+      // Handle opacity fade out before second drop and snap back (only if not in final fade)
+      if (currentTime >= fadeOutStartTime && currentTime < fadeOutEndTime) {
+        const fadeProgress = (currentTime - fadeOutStartTime) / fadeOutDuration;
+        canvasOpacity = 1.0 - fadeProgress;
+      } else if (
+        currentTime >= fadeOutEndTime &&
+        currentTime < secondDropSnapTime
+      ) {
+        canvasOpacity = 0.0;
+      } else if (currentTime >= secondDropSnapTime) {
+        canvasOpacity = 1.0;
+      }
     }
 
     starsCanvas.style.opacity = canvasOpacity;
