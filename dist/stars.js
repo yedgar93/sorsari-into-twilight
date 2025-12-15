@@ -40,8 +40,8 @@
   // Blinking stars data
   const blinkingStars = [];
   const blinkingStarCount = 80;
-  const blinkingStarFadeOutDelay = 8; // 8 seconds after music starts
-  const blinkingStarFadeOutDuration = 12; // Fade out over 12 seconds
+  const blinkingStarFadeOutDelay = 12; // 8 seconds after music starts
+  const blinkingStarFadeOutDuration = 16; // Fade out over 12 seconds
 
   // Screen shake parameters
   const shakeDuration = 1.5;
@@ -121,6 +121,14 @@
   const chromaticAberrationIntensity = 0.6; // How much to use the offset (0-1)
   const chromaticFadeOutStart = 190; // 3:10 - start fading out
   const chromaticFadeOutEnd = 206; // 3:26 - completely gone
+
+  // Process kill times
+  const starPulsingKillTime = 206; // Kill star pulsing at 3:26
+  const audioAnalysisKillTime = 206; // Kill audio analysis at 3:26
+
+  // Process kill flags
+  let starPulsingKilled = false;
+  let audioAnalysisKilled = false;
 
   // Device motion tilt offset
   let tiltOffsetX = 0;
@@ -510,9 +518,21 @@
     }
 
     // Get instruments level for star pulsing
-    const instrumentsLevel = SORSARI.getInstrumentsLevel
-      ? SORSARI.getInstrumentsLevel()
-      : 0;
+    // Kill star pulsing at 3:26 to save performance
+    let instrumentsLevel = 0;
+    if (currentTime < starPulsingKillTime) {
+      instrumentsLevel = SORSARI.getInstrumentsLevel
+        ? SORSARI.getInstrumentsLevel()
+        : 0;
+    } else if (!starPulsingKilled) {
+      starPulsingKilled = true;
+      // Reset all star pulse amounts
+      starLayers.forEach((layer) => {
+        layer.stars.forEach((star) => {
+          star.pulseAmount = 0;
+        });
+      });
+    }
     const pulseThreshold = 0.25;
 
     // Get dynamic blur values from debug controls (if available)

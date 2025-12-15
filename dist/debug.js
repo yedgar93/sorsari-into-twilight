@@ -107,7 +107,7 @@
     // Handle both mouse and touch events
     const clientX = e.type === "touchstart" ? e.touches[0].clientX : e.clientX;
     const clientY = e.type === "touchstart" ? e.touches[0].clientY : e.clientY;
-    
+
     initialX = clientX - debugWindow.offsetLeft;
     initialY = clientY - debugWindow.offsetTop;
     isDragging = true;
@@ -116,20 +116,20 @@
   function drag(e) {
     if (isDragging) {
       e.preventDefault();
-      
+
       // Handle both mouse and touch events
       const clientX = e.type === "touchmove" ? e.touches[0].clientX : e.clientX;
       const clientY = e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
-      
+
       currentX = clientX - initialX;
       currentY = clientY - initialY;
-      
+
       // Constrain to viewport
       const maxX = window.innerWidth - debugWindow.offsetWidth;
       const maxY = window.innerHeight - debugWindow.offsetHeight;
       currentX = Math.max(0, Math.min(currentX, maxX));
       currentY = Math.max(0, Math.min(currentY, maxY));
-      
+
       debugWindow.style.left = currentX + "px";
       debugWindow.style.top = currentY + "px";
     }
@@ -160,13 +160,26 @@
   setInterval(() => {
     // Access the audioElement from SORSARI namespace
     if (SORSARI.audioElement) {
-      const minutes = Math.floor(SORSARI.audioElement.currentTime / 60);
-      const seconds = Math.floor(SORSARI.audioElement.currentTime % 60);
+      const currentTime = SORSARI.audioElement.currentTime;
+      const duration = SORSARI.audioElement.duration;
+
+      // Update time display
+      const minutes = Math.floor(currentTime / 60);
+      const seconds = Math.floor(currentTime % 60);
       document.getElementById(
         "time-display"
       ).textContent = `Time: ${minutes}:${seconds.toString().padStart(2, "0")}`;
+
+      // Update progress bar
+      if (duration > 0) {
+        const progress = (currentTime / duration) * 100;
+        const progressBar = document.getElementById("song-progress-bar");
+        if (progressBar) {
+          progressBar.style.width = progress + "%";
+        }
+      }
     }
-  }, 100);
+  }, 42);
 
   // Hue rotate slider control
   const hueSlider = document.getElementById("hue-slider");
@@ -247,13 +260,13 @@
     const terrorModelViewer = document.getElementById("terror-model-viewer");
     const visualizerCanvas = document.getElementById("visualizer-canvas");
 
-    console.log("[Debug] starsCanvasBtn:", starsCanvasBtn);
-    console.log("[Debug] threeContainerBtn:", threeContainerBtn);
-    console.log("[Debug] modelsBtn:", modelsBtn);
-    console.log("[Debug] starsCanvas:", starsCanvas);
-    console.log("[Debug] threeContainerEl:", threeContainerEl);
-    console.log("[Debug] modelViewer:", modelViewer);
-    console.log("[Debug] terrorModelViewer:", terrorModelViewer);
+    // console.log("[Debug] starsCanvasBtn:", starsCanvasBtn);
+    // console.log("[Debug] threeContainerBtn:", threeContainerBtn);
+    // console.log("[Debug] modelsBtn:", modelsBtn);
+    // console.log("[Debug] starsCanvas:", starsCanvas);
+    // console.log("[Debug] threeContainerEl:", threeContainerEl);
+    // console.log("[Debug] modelViewer:", modelViewer);
+    // console.log("[Debug] terrorModelViewer:", terrorModelViewer);
 
     // Track visibility state
     let starsCanvasVisible = true;

@@ -637,6 +637,26 @@ function init() {
   const trianglesFadeOutEnd = 30.12; // Fade out complete at 0:29.5
   const trianglesFadeInTime = 31.96; // Abruptly fade back in at 0:32
 
+  // Process kill times
+  const parallaxKillTime = 190; // Kill parallax shift at 3:10
+  const bloomKillTime = 190; // Kill bloom updates at 3:10
+  const kickDetectionKillTime = 190; // Kill kick detection at 3:10
+  const screenShakeKillTime = 192; // Kill screen shake at 3:12
+  const starPulsingKillTime = 206; // Kill star pulsing at 3:26
+  const audioAnalysisKillTime = 206; // Kill audio analysis at 3:26
+  const cameraPanKillTime = 215; // Kill camera pan & tilt at 3:35
+  const centerModelKillTime = 215; // Kill center model at 3:35
+
+  // Process kill flags
+  let parallaxKilled = false;
+  let bloomKilled = false;
+  let kickDetectionKilled = false;
+  let screenShakeKilled = false;
+  let starPulsingKilled = false;
+  let audioAnalysisKilled = false;
+  let cameraPanKilled = false;
+  let centerModelKilled = false;
+
   // Peak detection for parallax
   let parallaxPeakLevel = 0;
   let parallaxPeakDecay = 0.9; // How fast the peak decays (0.9-0.99)
@@ -688,7 +708,20 @@ function init() {
     const currentTime = audioElement ? audioElement.currentTime : 0;
 
     // Apply parallax depth shift to UI elements based on audio peaks
-    if (audioReactive && drumsAnalyser) {
+    // Kill parallax process at 3:10 to save performance
+    if (currentTime >= parallaxKillTime) {
+      if (!parallaxKilled) {
+        parallaxKilled = true;
+        // Reset all parallax transforms
+        if (bottomImage) bottomImage.style.transform = "translateY(0px)";
+        if (mobileLeftImage)
+          mobileLeftImage.style.transform = "translateY(0px)";
+        if (mobileRightImage)
+          mobileRightImage.style.transform = "translateY(0px)";
+        if (trackTitle)
+          trackTitle.style.transform = "translateX(-50%) translateY(0px)";
+      }
+    } else if (audioReactive && drumsAnalyser) {
       // Get frequency data from drums track instead of master
       drumsAnalyser.getByteFrequencyData(drumsDataArray);
 
@@ -925,7 +958,18 @@ function init() {
     }
 
     // Audio reactivity - only use actual bass from audio (throttled to 30fps)
-    const bass = getAudioDataThrottled();
+    // Kill audio analysis at 3:26 to save performance
+    let bass = 0;
+    if (currentTime < audioAnalysisKillTime) {
+      bass = getAudioDataThrottled();
+    } else if (!audioAnalysisKilled) {
+      audioAnalysisKilled = true;
+      // Reset audio-reactive values to defaults
+      animation.material.uniforms["uD"].value = 2.0;
+      animation.material.uniforms["uA"].value = 1.0;
+      animation.material.uniforms["roughness"].value = 0.5;
+      animation.material.uniforms["metalness"].value = 0.3;
+    }
 
     // Fade in canvas opacity from 13 to 30 seconds
     const fadeInStart = 13.0; // Start fading at 13 seconds
@@ -964,7 +1008,15 @@ function init() {
     animation.material.uniforms["metalness"].value = 0.3 + bass * 0.7;
 
     // Kick detection and color flash (using drums track) - throttled to every 2 frames
-    if (frameCount % 2 === 0) {
+    // Kill kick detection at 3:10 to save performance
+    if (currentTime >= kickDetectionKillTime) {
+      if (!kickDetectionKilled) {
+        kickDetectionKilled = true;
+        // Reset to default color
+        animation.material.uniforms["diffuse"].value.copy(defaultColor);
+        colorFlashAmount = 0.0;
+      }
+    } else if (frameCount % 2 === 0) {
       const drumsBass = getDrumsBasThrottled();
       if (drumsBass > kickThreshold) {
         // Kick detected - flash to pink
@@ -984,7 +1036,13 @@ function init() {
     }
 
     // Update bloom intensity - throttled to every 3 frames
-    if (frameCount % 3 === 0) {
+    // Kill bloom at 3:10 to save performance
+    if (currentTime >= bloomKillTime) {
+      if (!bloomKilled) {
+        bloomKilled = true;
+        bloomPass.copyUniforms["opacity"].value = 0.0;
+      }
+    } else if (frameCount % 3 === 0) {
       let bloomIntensity = 0.0; // No bloom by default
       if (bass > 0.5) {
         // Scale bloom intensity based on how much bass exceeds threshold
@@ -994,12 +1052,19 @@ function init() {
     }
 
     // Screen shake on drops
+    // Calculate drop states first (needed for both shake and screen shake application)
     const isInFirstDrop =
       currentTime >= firstDropTime && currentTime < firstDropShakeEndTime;
     const isInSecondDrop =
       currentTime >= secondDropTime && currentTime < secondDropShakeEndTime;
 
-    if (isInFirstDrop || isInSecondDrop) {
+    // Kill screen shake process at 3:12 to save performance
+    if (currentTime >= screenShakeKillTime) {
+      if (!screenShakeKilled) {
+        screenShakeKilled = true;
+        screenShakeActive = false;
+      }
+    } else if (isInFirstDrop || isInSecondDrop) {
       // Determine if we should be shaking or in delay
       if (!screenShakeActive) {
         screenShakeActive = true;
@@ -1022,9 +1087,20 @@ function init() {
       screenShakeActive = false;
     }
 
+    // Kill center model rendering at 3:35 to save performance
+    if (currentTime >= centerModelKillTime) {
+      if (!centerModelKilled) {
+        centerModelKilled = true;
+        // Stop all camera animation
+        if (root.camera) {
+          root.camera.position.copy(originalCameraPos);
+          root.camera.lookAt(0, 0, 0);
+        }
+      }
+    }
     // Camera roving - smooth circular motion that returns to origin
     // Only move camera if controls are not enabled AND audio is playing AND zoom-in is complete
-    if (
+    else if (
       (!root.controls || !root.controls.enabled) &&
       audioReactive &&
       audioElement &&
@@ -1063,7 +1139,17 @@ function init() {
     }
 
     // At 2:40:06 (160.06 seconds), start panning camera upwards and tilting (ALWAYS active after this time)
-    if (currentTime >= upwardPanStartTime) {
+    // Kill camera pan at 3:35 to save performance
+    if (currentTime >= cameraPanKillTime) {
+      if (!cameraPanKilled) {
+        cameraPanKilled = true;
+        // Reset camera to original position
+        if (root.camera) {
+          root.camera.position.copy(originalCameraPos);
+          root.camera.lookAt(0, 0, 0);
+        }
+      }
+    } else if (currentTime >= upwardPanStartTime) {
       if (!upwardPanEnabled) {
         console.log("Camera pan and tilt enabled at 2:40:06");
         upwardPanEnabled = true;

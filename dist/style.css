@@ -373,6 +373,30 @@ model-viewer::part(bar) {
   transition: transform 0.05s ease-out;
 }
 
+#song-progress-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  height: 5px;
+  width: 0%;
+  background-color: rgba(255, 255, 255, 0.689);
+  z-index: 9998;
+  opacity: 0.8;
+  pointer-events: none;
+  transition: width 0.1s linear;
+}
+
+/* Safe-area support - keep progress bar above iOS home indicator */
+@supports (padding: env(safe-area-inset-bottom)) {
+  #song-progress-bar {
+    bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  #track-title {
+    bottom: calc(20px + env(safe-area-inset-bottom, 0));
+  }
+}
+
 #final-image-container {
   position: fixed;
   top: 50%;
