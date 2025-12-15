@@ -177,6 +177,17 @@
   const finalZoomOutEnd = 215;
   const finalZoomOutDuration = finalZoomOutEnd - finalZoomOutStart;
 
+  // Pixel blur parameters
+  const pixelBlurStart = 0;
+  const pixelBlurEnd = 15.5;
+  const pixelBlurDuration = pixelBlurEnd - pixelBlurStart;
+  const maxPixelBlur = 12; // Maximum pixel blur amount
+
+  // Get pixel blur wrapper
+  const modelPixelBlurWrapper = document.querySelector(
+    "#model-pixel-blur-wrapper"
+  );
+
   // CENTER MODEL BRIGHTNESS
   // =====================
   const brightnessStartValue = 0.1; // Start at 0.1 brightness
@@ -228,7 +239,36 @@
     } else if (currentTime >= brightnessEndTime) {
       brightness = brightnessEndValue;
     }
-    modelViewerWrapper.style.filter = `brightness(${brightness})`;
+    // Pixel blur animation (0 to 12.5s)
+    let pixelBlurAmount = 0;
+    if (currentTime < pixelBlurEnd) {
+      const blurProgress = currentTime / pixelBlurDuration;
+      pixelBlurAmount = maxPixelBlur * (1 - blurProgress); // Fade from max to 0
+    }
+
+    // Debug log every 30 frames
+    // Apply pixel blur to outer wrapper
+    if (modelPixelBlurWrapper) {
+      if (pixelBlurAmount > 0) {
+        modelPixelBlurWrapper.style.filter = `blur(${pixelBlurAmount}px)`;
+      } else {
+        modelPixelBlurWrapper.style.filter = "none";
+      }
+    }
+
+    // Combine brightness filter for inner wrapper
+    let filterValue = `brightness(${brightness})`;
+    modelViewerWrapper.style.filter = filterValue;
+
+    if (zoomFrameCount % 30 === 0) {
+      console.log(
+        `[Model Blur] currentTime=${currentTime.toFixed(
+          2
+        )}s, pixelBlurAmount=${pixelBlurAmount.toFixed(2)}px, blurFilter="${
+          modelPixelBlurWrapper?.style.filter || "none"
+        }"`
+      );
+    }
 
     // Base scale animation (0 to 31.5s)
     let baseScale = 1.0;
@@ -363,9 +403,11 @@
   function canOpenTerrorLink() {
     const audio = window.SORSARI && SORSARI.audioElement;
     const playing = !!(audio && !audio.paused && !audio.ended);
-    const t = (window.SORSARI && (SORSARI.musicTime || (audio && audio.currentTime))) || 0;
+    const t =
+      (window.SORSARI && (SORSARI.musicTime || (audio && audio.currentTime))) ||
+      0;
     // Allow only after the global text/model fade-in has been active >= 1s
-    const fadeGuardPassed = t >= (textFadeInStart + 1.0);
+    const fadeGuardPassed = t >= textFadeInStart + 1.0;
     return playing && fadeGuardPassed;
   }
 

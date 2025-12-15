@@ -186,20 +186,22 @@
     <!-- Song progress bar -->
     <div id="song-progress-bar"></div>
 
-    <!-- Center model viewer -->
-    <div id="model-viewer-wrapper">
-      <model-viewer
-        class="center-model-viewer"
-        id="model-viewer"
-        src="base_basic_shaded.glb"
-        camera-orbit="0deg 75deg 105%"
-        min-camera-orbit="-30deg 60deg auto"
-        max-camera-orbit="30deg 90deg auto"
-        field-of-view="30deg"
-        disable-tap
-        interaction-prompt="none"
-        loading="lazy"
-      ></model-viewer>
+    <!-- Center model viewer with pixel blur wrapper -->
+    <div id="model-pixel-blur-wrapper">
+      <div id="model-viewer-wrapper">
+        <model-viewer
+          class="center-model-viewer"
+          id="model-viewer"
+          src="base_basic_shaded.glb"
+          camera-orbit="0deg 75deg 105%"
+          min-camera-orbit="-30deg 60deg auto"
+          max-camera-orbit="30deg 90deg auto"
+          field-of-view="30deg"
+          disable-tap
+          interaction-prompt="none"
+          loading="lazy"
+        ></model-viewer>
+      </div>
     </div>
 
     <!-- Final image (fades in at 3:35) - deferred loading since not visible until 3:33 -->

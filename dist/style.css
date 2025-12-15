@@ -339,6 +339,19 @@ img {
   word-wrap: break-word;
 }
 
+/* Center model pixel blur wrapper (outer) */
+#model-pixel-blur-wrapper {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 555px;
+  height: 555px;
+  z-index: 10002; /* Above SNES intro stars (10001) */
+  pointer-events: none;
+  will-change: filter;
+}
+
 /* Center model viewer wrapper */
 #model-viewer-wrapper {
   position: fixed;
@@ -347,7 +360,7 @@ img {
   transform: translate(-50%, -50%);
   width: 555px;
   height: 555px;
-  z-index: 10;
+  z-index: 10002; /* Above SNES intro stars (10001) */
   pointer-events: none;
   will-change: filter, transform;
   filter: brightness(0.1);
