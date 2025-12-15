@@ -795,7 +795,7 @@ function init() {
         glitchOpacity > 0
       ) {
         // Calculate chromatic offset based on parallax shift (MORE INTENSE)
-        const chromaticOffset = parallaxShift * 6 + 2; // Bigger multiplier + base offset
+        const chromaticOffset = parallaxShift * 2.73 + 1.55; // Bigger multiplier + base offset
 
         // Helper function to apply chromatic + optional ghost effects
         const applyGlitchEffect = (element, key) => {
