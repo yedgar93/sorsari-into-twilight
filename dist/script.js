@@ -660,10 +660,18 @@ function init() {
   let audioAnalysisKilled = false;
   let cameraPanKilled = false;
   let centerModelKilled = false;
+  let threeRenderingKilled = false;
 
   // Peak detection for parallax
   let parallaxPeakLevel = 0;
   let parallaxPeakDecay = 0.9; // How fast the peak decays (0.9-0.99)
+
+  // Parallax throttling - update at reduced FPS based on CONFIG.fpsScale
+  let parallaxFrameCount = 0;
+  const parallaxUpdateInterval = Math.max(
+    1,
+    Math.round(1 / (CONFIG.fpsScale * 0.5))
+  ); // 30fps target (0.5x of main FPS)
 
   // Individual parallax offsets for each element (randomized)
   const parallaxOffsets = {
@@ -726,174 +734,180 @@ function init() {
           trackTitle.style.transform = "translateX(-50%) translateY(0px)";
       }
     } else if (audioReactive && drumsAnalyser) {
-      // Get frequency data from drums track instead of master
-      drumsAnalyser.getByteFrequencyData(drumsDataArray);
-
-      // Calculate bass level from low frequencies (first 8 bins)
-      let bassSum = 0;
-      for (let i = 0; i < 8; i++) {
-        bassSum += drumsDataArray[i];
-      }
-      const audioLevel = bassSum / (8 * 255); // Normalize to 0-1
-
-      // Peak detection: only respond to peaks above the current peak level
-      if (audioLevel > parallaxPeakLevel) {
-        parallaxPeakLevel = audioLevel; // New peak detected
+      // Throttle parallax updates based on global FPS scale (30fps target)
+      parallaxFrameCount++;
+      if (parallaxFrameCount % parallaxUpdateInterval !== 0) {
+        // Skip this frame's parallax update
       } else {
-        parallaxPeakLevel *= parallaxPeakDecay; // Decay the peak over time
-      }
+        // Get frequency data from drums track instead of master
+        drumsAnalyser.getByteFrequencyData(drumsDataArray);
 
-      // Use the peak level for parallax (creates pulsing effect)
-      const parallaxShift =
-        parallaxPeakLevel * parallaxMaxShift * parallaxSensitivity;
-
-      // Apply to bottom image with randomized offset and direction
-      if (bottomImage) {
-        const shift =
-          parallaxShift * parallaxDirections.bottomImage +
-          parallaxOffsets.bottomImage;
-        bottomImage.style.transform = `translateY(${shift}px)`;
-      }
-
-      // Apply to mobile left image with randomized offset and direction
-      if (mobileLeftImage) {
-        const shift =
-          parallaxShift * parallaxDirections.mobileLeftImage +
-          parallaxOffsets.mobileLeftImage;
-        mobileLeftImage.style.transform = `translateY(${shift}px)`;
-      }
-
-      // Apply to mobile right image with randomized offset and direction
-      if (mobileRightImage) {
-        const shift =
-          parallaxShift * parallaxDirections.mobileRightImage +
-          parallaxOffsets.mobileRightImage;
-        mobileRightImage.style.transform = `translateY(${shift}px)`;
-      }
-
-      // Apply to track title - combine with existing translateX and randomized offset/direction
-      if (trackTitle) {
-        const shift =
-          parallaxShift * parallaxDirections.trackTitle +
-          parallaxOffsets.trackTitle;
-        trackTitle.style.transform = `translateX(-50%) translateY(${shift}px)`;
-      }
-
-      // Apply chromatic aberration to UI elements during drops (opposite to parallax direction)
-      // First drop: 0:31 to 1:36, Second drop: 2:07 to 3:10, Fade out: 3:10 to 3:30
-      const isInDrop =
-        (currentTime >= 31 && currentTime < 96) || // First drop 0:31 to 1:36
-        (currentTime >= 127 && currentTime < 190); // Second drop 2:07 to 3:10
-
-      // Calculate opacity for fade out section (3:10 to 3:30)
-      let glitchOpacity = 1.0;
-      if (currentTime >= 190 && currentTime < 210) {
-        // Fade out from 1.0 to 0 over 20 seconds
-        glitchOpacity = 1.0 - (currentTime - 190) / 20;
-      } else if (currentTime >= 210) {
-        glitchOpacity = 0;
-      }
-
-      if (
-        (isInDrop || (currentTime >= 190 && currentTime < 210)) &&
-        glitchOpacity > 0
-      ) {
-        // Calculate chromatic offset based on parallax shift (MORE INTENSE)
-        const chromaticOffset = parallaxShift * 2.73 + 1.55; // Bigger multiplier + base offset
-
-        // Helper function to apply chromatic + optional ghost effects
-        const applyGlitchEffect = (element, key) => {
-          if (!element) return;
-
-          let dir = -parallaxDirections[key]; // Opposite direction
-          const ghost = ghostMirrorState[key];
-
-          // Random chance to trigger ghost effect (only if not already active)
-          if (!ghost.active && Math.random() < ghostMirrorChance) {
-            ghost.active = true;
-            ghost.endTime = currentTime + ghostMirrorDuration;
-            // Randomly choose effect type: 0 = reverse colors, 1 = flip horizontal, 2 = both
-            ghost.effectType = Math.floor(Math.random() * 3);
-          }
-
-          // Check if ghost effect should end
-          if (ghost.active && currentTime >= ghost.endTime) {
-            ghost.active = false;
-          }
-
-          // Apply ghost effects
-          let flipColors = false;
-          let flipHorizontal = false;
-          if (ghost.active) {
-            if (ghost.effectType === 0 || ghost.effectType === 2) {
-              flipColors = true; // Reverse chromatic aberration direction
-            }
-            if (ghost.effectType === 1 || ghost.effectType === 2) {
-              flipHorizontal = true; // Flip aberration horizontally (Y axis offset)
-            }
-          }
-
-          // Reverse direction if flipColors is active
-          if (flipColors) {
-            dir = -dir;
-          }
-
-          // Build filter string - horizontal flip adds Y offset
-          const yOffset = flipHorizontal ? chromaticOffset * 0.44 : 0;
-          const redOpacity = 0.26 * glitchOpacity;
-          const blueOpacity = 0.34 * glitchOpacity;
-          const filter = `drop-shadow(${
-            chromaticOffset * dir
-          }px ${yOffset}px 0px rgba(255, 0, 0, ${redOpacity})) drop-shadow(${
-            -chromaticOffset * dir
-          }px ${-yOffset}px 0px rgba(0, 0, 255, ${blueOpacity}))`;
-
-          element.style.filter = filter;
-        };
-
-        // Apply to each element
-        applyGlitchEffect(bottomImage, "bottomImage");
-        applyGlitchEffect(mobileLeftImage, "mobileLeftImage");
-        applyGlitchEffect(mobileRightImage, "mobileRightImage");
-        applyGlitchEffect(trackTitle, "trackTitle");
-
-        // Apply chromatic aberration to TERROR model
-        const terrorModelViewer = document.querySelector(
-          "#terror-model-viewer"
-        );
-        if (terrorModelViewer) {
-          const redOpacity = 0.44 * glitchOpacity;
-          const blueOpacity = 0.52 * glitchOpacity;
-          const terrorFilter = `drop-shadow(${chromaticOffset}px 0px 0px rgba(255, 0, 0, ${redOpacity})) drop-shadow(-${chromaticOffset}px 0px 0px rgba(0, 0, 255, ${blueOpacity}))`;
-          terrorModelViewer.style.filter = terrorFilter;
+        // Calculate bass level from low frequencies (first 8 bins)
+        let bassSum = 0;
+        for (let i = 0; i < 8; i++) {
+          bassSum += drumsDataArray[i];
         }
-      } else {
-        // Remove chromatic aberration and reset transforms when not in drop
+        const audioLevel = bassSum / (8 * 255); // Normalize to 0-1
+
+        // Peak detection: only respond to peaks above the current peak level
+        if (audioLevel > parallaxPeakLevel) {
+          parallaxPeakLevel = audioLevel; // New peak detected
+        } else {
+          parallaxPeakLevel *= parallaxPeakDecay; // Decay the peak over time
+        }
+
+        // Use the peak level for parallax (creates pulsing effect)
+        const parallaxShift =
+          parallaxPeakLevel * parallaxMaxShift * parallaxSensitivity;
+
+        // Apply to bottom image with randomized offset and direction
         if (bottomImage) {
-          bottomImage.style.filter = "";
-          ghostMirrorState.bottomImage.active = false;
-        }
-        if (mobileLeftImage) {
-          mobileLeftImage.style.filter = "";
-          ghostMirrorState.mobileLeftImage.active = false;
-        }
-        if (mobileRightImage) {
-          mobileRightImage.style.filter = "";
-          ghostMirrorState.mobileRightImage.active = false;
-        }
-        if (trackTitle) {
-          trackTitle.style.filter = "";
-          ghostMirrorState.trackTitle.active = false;
+          const shift =
+            parallaxShift * parallaxDirections.bottomImage +
+            parallaxOffsets.bottomImage;
+          bottomImage.style.transform = `translateY(${shift}px)`;
         }
 
-        // Remove chromatic aberration from TERROR model
-        const terrorModelViewer = document.querySelector(
-          "#terror-model-viewer"
-        );
-        if (terrorModelViewer) {
-          terrorModelViewer.style.filter = "";
+        // Apply to mobile left image with randomized offset and direction
+        if (mobileLeftImage) {
+          const shift =
+            parallaxShift * parallaxDirections.mobileLeftImage +
+            parallaxOffsets.mobileLeftImage;
+          mobileLeftImage.style.transform = `translateY(${shift}px)`;
         }
-      }
+
+        // Apply to mobile right image with randomized offset and direction
+        if (mobileRightImage) {
+          const shift =
+            parallaxShift * parallaxDirections.mobileRightImage +
+            parallaxOffsets.mobileRightImage;
+          mobileRightImage.style.transform = `translateY(${shift}px)`;
+        }
+
+        // Apply to track title - combine with existing translateX and randomized offset/direction
+        if (trackTitle) {
+          const shift =
+            parallaxShift * parallaxDirections.trackTitle +
+            parallaxOffsets.trackTitle;
+          trackTitle.style.transform = `translateX(-50%) translateY(${shift}px)`;
+        }
+
+        // Apply chromatic aberration to UI elements during drops (opposite to parallax direction)
+        // First drop: 0:31 to 1:36, Second drop: 2:07 to 3:10, Fade out: 3:10 to 3:30
+        const isInDrop =
+          (currentTime >= 31 && currentTime < 96) || // First drop 0:31 to 1:36
+          (currentTime >= 127 && currentTime < 190); // Second drop 2:07 to 3:10
+
+        // Calculate opacity for fade out section (3:10 to 3:30)
+        let glitchOpacity = 1.0;
+        if (currentTime >= 190 && currentTime < 210) {
+          // Fade out from 1.0 to 0 over 20 seconds
+          glitchOpacity = 1.0 - (currentTime - 190) / 20;
+        } else if (currentTime >= 210) {
+          glitchOpacity = 0;
+        }
+
+        if (
+          (isInDrop || (currentTime >= 190 && currentTime < 210)) &&
+          glitchOpacity > 0
+        ) {
+          // Calculate chromatic offset based on parallax shift (MORE INTENSE)
+          const chromaticOffset = parallaxShift * 2.73 + 1.55; // Bigger multiplier + base offset
+
+          // Helper function to apply chromatic + optional ghost effects
+          const applyGlitchEffect = (element, key) => {
+            if (!element) return;
+
+            let dir = -parallaxDirections[key]; // Opposite direction
+            const ghost = ghostMirrorState[key];
+
+            // Random chance to trigger ghost effect (only if not already active)
+            if (!ghost.active && Math.random() < ghostMirrorChance) {
+              ghost.active = true;
+              ghost.endTime = currentTime + ghostMirrorDuration;
+              // Randomly choose effect type: 0 = reverse colors, 1 = flip horizontal, 2 = both
+              ghost.effectType = Math.floor(Math.random() * 3);
+            }
+
+            // Check if ghost effect should end
+            if (ghost.active && currentTime >= ghost.endTime) {
+              ghost.active = false;
+            }
+
+            // Apply ghost effects
+            let flipColors = false;
+            let flipHorizontal = false;
+            if (ghost.active) {
+              if (ghost.effectType === 0 || ghost.effectType === 2) {
+                flipColors = true; // Reverse chromatic aberration direction
+              }
+              if (ghost.effectType === 1 || ghost.effectType === 2) {
+                flipHorizontal = true; // Flip aberration horizontally (Y axis offset)
+              }
+            }
+
+            // Reverse direction if flipColors is active
+            if (flipColors) {
+              dir = -dir;
+            }
+
+            // Build filter string - horizontal flip adds Y offset
+            const yOffset = flipHorizontal ? chromaticOffset * 0.44 : 0;
+            const redOpacity = 0.26 * glitchOpacity;
+            const blueOpacity = 0.34 * glitchOpacity;
+            const filter = `drop-shadow(${
+              chromaticOffset * dir
+            }px ${yOffset}px 0px rgba(255, 0, 0, ${redOpacity})) drop-shadow(${
+              -chromaticOffset * dir
+            }px ${-yOffset}px 0px rgba(0, 0, 255, ${blueOpacity}))`;
+
+            element.style.filter = filter;
+          };
+
+          // Apply to each element
+          applyGlitchEffect(bottomImage, "bottomImage");
+          applyGlitchEffect(mobileLeftImage, "mobileLeftImage");
+          applyGlitchEffect(mobileRightImage, "mobileRightImage");
+          applyGlitchEffect(trackTitle, "trackTitle");
+
+          // Apply chromatic aberration to TERROR model
+          const terrorModelViewer = document.querySelector(
+            "#terror-model-viewer"
+          );
+          if (terrorModelViewer) {
+            const redOpacity = 0.44 * glitchOpacity;
+            const blueOpacity = 0.52 * glitchOpacity;
+            const terrorFilter = `drop-shadow(${chromaticOffset}px 0px 0px rgba(255, 0, 0, ${redOpacity})) drop-shadow(-${chromaticOffset}px 0px 0px rgba(0, 0, 255, ${blueOpacity}))`;
+            terrorModelViewer.style.filter = terrorFilter;
+          }
+        } else {
+          // Remove chromatic aberration and reset transforms when not in drop
+          if (bottomImage) {
+            bottomImage.style.filter = "";
+            ghostMirrorState.bottomImage.active = false;
+          }
+          if (mobileLeftImage) {
+            mobileLeftImage.style.filter = "";
+            ghostMirrorState.mobileLeftImage.active = false;
+          }
+          if (mobileRightImage) {
+            mobileRightImage.style.filter = "";
+            ghostMirrorState.mobileRightImage.active = false;
+          }
+          if (trackTitle) {
+            trackTitle.style.filter = "";
+            ghostMirrorState.trackTitle.active = false;
+          }
+
+          // Remove chromatic aberration from TERROR model
+          const terrorModelViewer = document.querySelector(
+            "#terror-model-viewer"
+          );
+          if (terrorModelViewer) {
+            terrorModelViewer.style.filter = "";
+          }
+        }
+      } // Close throttle check
     }
 
     // Camera zoom out from 2:45 to 3:35 (165s to 215s) - pull camera back on Z axis
@@ -1393,11 +1407,7 @@ function init() {
       ) {
         threeContainer.style.opacity = 0;
       }
-      // Abruptly fade back in at 0:32
-      else if (currentTime >= trianglesFadeInTime) {
-        threeContainer.style.opacity = 1.0;
-      }
-      // Later fade out from 3:05 to 3:35 (185s to 215s)
+      // Later fade out from 3:05 to 3:35 (185s to 215s) - check this BEFORE the fade in condition
       else if (
         currentTime >= triangleFadeOutStart &&
         currentTime <= triangleFadeOutEnd
@@ -1409,6 +1419,19 @@ function init() {
       } else if (currentTime > triangleFadeOutEnd) {
         // Keep at 0 opacity after fade completes
         threeContainer.style.opacity = 0;
+      }
+      // Abruptly fade back in at 0:32 (but not if we're in the final fade out)
+      else if (currentTime >= trianglesFadeInTime) {
+        threeContainer.style.opacity = 1.0;
+      }
+    }
+
+    // Kill THREE.js rendering after triangles fade out completes (3:35)
+    if (currentTime >= triangleFadeOutEnd) {
+      if (!threeRenderingKilled) {
+        threeRenderingKilled = true;
+        // Stop the update callback to save performance
+        paused = true;
       }
     }
 

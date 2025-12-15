@@ -43,6 +43,13 @@
   const blinkingStarFadeOutDelay = 12; // 8 seconds after music starts
   const blinkingStarFadeOutDuration = 16; // Fade out over 12 seconds
 
+  // Blinking stars re-appearance at 1:41
+  const blinkingStarFadeInStart = 101; // 1:41 - fade in starts
+  const blinkingStarFadeInDuration = 10; // Fade in over 10 seconds
+  const blinkingStarFadeOutStart = 125; // 2:05 - fade out starts
+  const blinkingStarFadeOutStart2 = 125; // 2:05
+  const blinkingStarFadeOutEnd = 152; // 2:32 - fade out ends (27 seconds duration)
+
   // Screen shake parameters
   const shakeDuration = 1.5;
   const shakeDelayDuration = 0.5;
@@ -81,7 +88,7 @@
       size: 0.75,
       opacity: 0.5,
       depth: 2,
-      blur: 3.0,
+      blur: 2.0,
       scale: 0.85,
     }, // Mid layer (blurred for depth effect)
     {
@@ -303,17 +310,63 @@
     // =====================
     let blinkingStarsOpacity = 1.0;
     let blinkingStarsActive = true;
-    if (currentTime >= blinkingStarFadeOutDelay) {
-      const fadeStartTime = blinkingStarFadeOutDelay;
-      const fadeEndTime = fadeStartTime + blinkingStarFadeOutDuration;
-      if (currentTime >= fadeStartTime && currentTime < fadeEndTime) {
-        const fadeProgress =
-          (currentTime - fadeStartTime) / blinkingStarFadeOutDuration;
-        blinkingStarsOpacity = 1.0 - fadeProgress;
-      } else if (currentTime >= fadeEndTime) {
-        blinkingStarsOpacity = 0;
-        blinkingStarsActive = false; // Kill the process after fade out
-      }
+
+    // Before fade out: fully visible (0s to 12s)
+    if (currentTime < blinkingStarFadeOutDelay) {
+      blinkingStarsOpacity = 1.0;
+      blinkingStarsActive = true;
+    }
+    // Initial fade out: 12s to 28s
+    else if (
+      currentTime >= blinkingStarFadeOutDelay &&
+      currentTime < blinkingStarFadeOutDelay + blinkingStarFadeOutDuration
+    ) {
+      const fadeProgress =
+        (currentTime - blinkingStarFadeOutDelay) / blinkingStarFadeOutDuration;
+      blinkingStarsOpacity = 1.0 - fadeProgress;
+      blinkingStarsActive = true;
+    }
+    // Fade out ends, stars are gone
+    else if (
+      currentTime >= blinkingStarFadeOutDelay + blinkingStarFadeOutDuration &&
+      currentTime < blinkingStarFadeInStart
+    ) {
+      blinkingStarsOpacity = 0;
+      blinkingStarsActive = false;
+    }
+    // Re-appearance: fade in from 1:41 to 1:51 (101s to 111s)
+    else if (
+      currentTime >= blinkingStarFadeInStart &&
+      currentTime < blinkingStarFadeInStart + blinkingStarFadeInDuration
+    ) {
+      const fadeProgress =
+        (currentTime - blinkingStarFadeInStart) / blinkingStarFadeInDuration;
+      blinkingStarsOpacity = fadeProgress;
+      blinkingStarsActive = true;
+    }
+    // Stars visible: 1:51 to 2:05 (111s to 125s)
+    else if (
+      currentTime >= blinkingStarFadeInStart + blinkingStarFadeInDuration &&
+      currentTime < blinkingStarFadeOutStart
+    ) {
+      blinkingStarsOpacity = 1.0;
+      blinkingStarsActive = true;
+    }
+    // Fade out again: 2:05 to 2:32 (125s to 152s)
+    else if (
+      currentTime >= blinkingStarFadeOutStart &&
+      currentTime < blinkingStarFadeOutEnd
+    ) {
+      const fadeProgress =
+        (currentTime - blinkingStarFadeOutStart) /
+        (blinkingStarFadeOutEnd - blinkingStarFadeOutStart);
+      blinkingStarsOpacity = 1.0 - fadeProgress;
+      blinkingStarsActive = true;
+    }
+    // After 2:32, stars are gone and process is killed
+    else if (currentTime >= blinkingStarFadeOutEnd) {
+      blinkingStarsOpacity = 0;
+      blinkingStarsActive = false;
     }
 
     // Render blinking stars (only if active to save performance)
