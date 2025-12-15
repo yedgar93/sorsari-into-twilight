@@ -13,6 +13,98 @@ html {
   image-rendering: -webkit-optimize-contrast;
 }
 
+/* CRT SNES-style pixel blend effect */
+/* True SNES resolution: 256x224 pixels = ~6px per pixel on 1920x1080 */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  background-image:
+    /* Horizontal scanlines */ repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.3),
+      rgba(0, 0, 0, 0.3) 1px,
+      transparent 1px,
+      transparent 6px
+    ),
+    /* Vertical scanlines */
+      repeating-linear-gradient(
+        90deg,
+        rgba(0, 0, 0, 0.3),
+        rgba(0, 0, 0, 0.3) 1px,
+        transparent 1px,
+        transparent 6px
+      ),
+    /* Soft glow overlay for CRT blend effect */
+      radial-gradient(
+        circle at 20% 50%,
+        rgba(255, 255, 255, 0.005),
+        transparent 50%
+      );
+  background-size: 1.57px 1.57px, 1.57px 1.57px, 100% 100%;
+  mix-blend-mode: multiply;
+  opacity: 0.34;
+  /* filter: invert(1); */
+  backdrop-filter: blur(0.75px);
+}
+
+/* Alternative: Stronger CRT phosphor glow (uncomment to use) */
+
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+  mix-blend-mode: screen;
+  filter: blur(2.5px);
+  opacity: 0.75;
+}
+
+/* Alternative: Stronger pixelation effect (uncomment to use instead) */
+/*
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.2),
+      rgba(0, 0, 0, 0.2) 2px,
+      transparent 2px,
+      transparent 4px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.2),
+      rgba(0, 0, 0, 0.2) 2px,
+      transparent 2px,
+      transparent 4px
+    );
+  background-size: 4px 4px;
+  mix-blend-mode: overlay;
+}
+*/
+
 /* Base styles */
 body {
   margin: 0;
