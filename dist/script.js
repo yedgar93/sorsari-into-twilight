@@ -1,12 +1,24 @@
 window.onload = init;
 
+// =====================
+// SORSARI Namespace
+// Single global object to share state between scripts
+// =====================
+window.SORSARI = {
+  musicTime: 0,
+  audioElement: null,
+  getInstrumentsLevel: function () {
+    return 0;
+  }, // Will be replaced after init
+};
+
 // Detect mobile devices
-var isMobile =
+const isMobile =
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     navigator.userAgent
   );
 
-var CONFIG = {
+const CONFIG = {
   pointCount: isMobile ? 800 : 4000, // Balanced for mobile - still looks good but performs well
   extrudeAmount: 2.0,
   splineStepsX: isMobile ? 2 : 3, // Decent quality on mobile
@@ -18,45 +30,42 @@ var CONFIG = {
 };
 
 // Audio setup
-var audioContext;
-var analyser;
-var dataArray;
-var audioSource;
-var audioElement;
+let audioContext;
+let analyser;
+let dataArray;
+let audioSource;
+let audioElement;
 
 // Drums track for kick detection
-var drumsAnalyser;
-var drumsDataArray;
-var drumsSource;
-var drumsElement;
+let drumsAnalyser;
+let drumsDataArray;
+let drumsSource;
+let drumsElement;
 
 // Instruments track for star pulsing
-var instrumentsAnalyser;
-var instrumentsDataArray;
-var instrumentsSource;
-var instrumentsElement;
+let instrumentsAnalyser;
+let instrumentsDataArray;
+let instrumentsSource;
+let instrumentsElement;
 
-var bassLevel = 0;
-var drumsBassLevel = 0;
-var instrumentsLevel = 0;
-var audioReactive = false;
-
-// Global time tracking (exposed for model-viewer animations)
-window.musicTime = 0;
+let bassLevel = 0;
+let drumsBassLevel = 0;
+let instrumentsLevel = 0;
+let audioReactive = false;
 
 // Kick detection and color flash
-var kickThreshold = 0.68; // Threshold for kick detection (0-1)
-var kickTimingOffset = 0.0; // Timing offset for kick flash in seconds (positive = earlier, negative = later)
-var colorFlashAmount = 0; // Current flash amount (0-1)
-var defaultColor = new THREE.Color(0x362f99); // Default purple/blue
-var kickColor = new THREE.Color(0x766391); // Pink color for kicks
+const kickThreshold = 0.68; // Threshold for kick detection (0-1)
+const kickTimingOffset = 0.0; // Timing offset for kick flash in seconds (positive = earlier, negative = later)
+let colorFlashAmount = 0; // Current flash amount (0-1)
+const defaultColor = new THREE.Color(0x362f99); // Default purple/blue
+const kickColor = new THREE.Color(0x766391); // Pink color for kicks
 
 // Audio timing offset (in seconds) - adjust if visualizer is ahead/behind music
-var audioTimingOffset = 0; // Positive = delay visualizer, Negative = advance visualizer
+const audioTimingOffset = 0; // Positive = delay visualizer, Negative = advance visualizer
 
 // Bass history buffer for timing offset
-var bassHistory = [];
-var maxHistoryLength = 300; // Store up to 10 seconds at 30fps
+const bassHistory = [];
+const maxHistoryLength = 300; // Store up to 10 seconds at 30fps
 
 function initAudio() {
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -65,21 +74,21 @@ function initAudio() {
   analyser = audioContext.createAnalyser();
   analyser.fftSize = isMobile ? 64 : 128;
   analyser.smoothingTimeConstant = 0.8;
-  var bufferLength = analyser.frequencyBinCount;
+  const bufferLength = analyser.frequencyBinCount;
   dataArray = new Uint8Array(bufferLength);
 
   // Drums analyser for kick detection
   drumsAnalyser = audioContext.createAnalyser();
   drumsAnalyser.fftSize = isMobile ? 64 : 128;
   drumsAnalyser.smoothingTimeConstant = 0.8;
-  var drumsBufferLength = drumsAnalyser.frequencyBinCount;
+  const drumsBufferLength = drumsAnalyser.frequencyBinCount;
   drumsDataArray = new Uint8Array(drumsBufferLength);
 
   // Instruments analyser for star pulsing
   instrumentsAnalyser = audioContext.createAnalyser();
   instrumentsAnalyser.fftSize = isMobile ? 64 : 128;
   instrumentsAnalyser.smoothingTimeConstant = 0.8;
-  var instrumentsBufferLength = instrumentsAnalyser.frequencyBinCount;
+  const instrumentsBufferLength = instrumentsAnalyser.frequencyBinCount;
   instrumentsDataArray = new Uint8Array(instrumentsBufferLength);
 
   // Main audio track
@@ -87,8 +96,8 @@ function initAudio() {
   audioElement.loop = false; // Don't loop
   audioElement.crossOrigin = "anonymous";
 
-  // Expose globally for debug controls
-  window.audioElement = audioElement;
+  // Expose via SORSARI namespace for other scripts
+  SORSARI.audioElement = audioElement;
 
   // Connect main audio to analyser and output
   audioSource = audioContext.createMediaElementSource(audioElement);
@@ -118,7 +127,7 @@ function initAudio() {
     }
 
     // Start all audio tracks
-    var playPromises = [audioElement.play()];
+    const playPromises = [audioElement.play()];
     if (drumsElement) {
       playPromises.push(drumsElement.play());
     }
@@ -166,8 +175,8 @@ function getAudioData() {
   analyser.getByteFrequencyData(dataArray);
 
   // Get bass frequencies (0-250Hz roughly corresponds to first 8 bins)
-  var bass = 0;
-  for (var i = 0; i < 8; i++) {
+  let bass = 0;
+  for (let i = 0; i < 8; i++) {
     bass += dataArray[i];
   }
   bass = bass / (8 * 255); // Normalize to 0-1
@@ -183,8 +192,8 @@ function getAudioData() {
 
   // Apply timing offset by reading from history
   // Positive offset = delay (read from past), Negative offset = advance (read current/recent)
-  var offsetFrames = Math.round(-audioTimingOffset * 30); // Convert seconds to frames (30fps), invert sign
-  var historyIndex = bassHistory.length - 1 - offsetFrames;
+  const offsetFrames = Math.round(-audioTimingOffset * 30); // Convert seconds to frames (30fps), invert sign
+  let historyIndex = bassHistory.length - 1 - offsetFrames;
 
   // Clamp to valid range
   if (historyIndex < 0) historyIndex = 0;
@@ -205,8 +214,8 @@ function getDrumsBass() {
   drumsAnalyser.getByteFrequencyData(drumsDataArray);
 
   // Get bass frequencies from drums track (0-250Hz roughly corresponds to first 8 bins)
-  var drumsBass = 0;
-  for (var i = 0; i < 8; i++) {
+  let drumsBass = 0;
+  for (let i = 0; i < 8; i++) {
     drumsBass += drumsDataArray[i];
   }
   drumsBass = drumsBass / (8 * 255); // Normalize to 0-1
@@ -228,8 +237,8 @@ function getInstrumentsLevel() {
   instrumentsAnalyser.getByteFrequencyData(instrumentsDataArray);
 
   // Get mid-high frequencies (bins 8-32 for melodic content)
-  var instruments = 0;
-  for (var i = 8; i < 32; i++) {
+  let instruments = 0;
+  for (let i = 8; i < 32; i++) {
     instruments += instrumentsDataArray[i];
   }
   instruments = instruments / (24 * 255); // Normalize to 0-1
@@ -240,14 +249,14 @@ function getInstrumentsLevel() {
   return instrumentsLevel;
 }
 
-// Expose instruments level globally for star animation
-window.getInstrumentsLevel = getInstrumentsLevel;
+// Expose instruments level via SORSARI namespace for star animation
+SORSARI.getInstrumentsLevel = getInstrumentsLevel;
 
 function init() {
   // Initialize audio
   initAudio();
 
-  var root = new THREERoot({
+  const root = new THREERoot({
     createCameraControls: false,
     antialias: window.devicePixelRatio === 1,
     fov: 60,
@@ -256,25 +265,24 @@ function init() {
   root.camera.position.set(0, 0, 200);
   root.camera.lookAt(15, -25, 0); // Tilted down to avoid bright center
 
-  var light = new THREE.PointLight(0xffffff, 1.0);
+  const light = new THREE.PointLight(0xffffff, 1.0);
   root.add(light);
 
-  var vertices = [],
-    indices,
-    i,
-    j;
+  const vertices = [];
+  let indices;
+  let i, j;
 
   // 1. generate random points in grid formation with some noise
-  var PHI = Math.PI * (3 - Math.sqrt(5));
-  var n = CONFIG.pointCount;
-  var radius = 100;
-  var noise = 4.0;
+  const PHI = Math.PI * (3 - Math.sqrt(5));
+  const n = CONFIG.pointCount;
+  const radius = 100;
+  const noise = 4.0;
 
   for (i = 0; i <= n; i++) {
-    var t = i * PHI;
-    var r = Math.sqrt(i) / Math.sqrt(n);
-    var x = r * Math.cos(t) * (radius - THREE.Math.randFloat(0, noise));
-    var y = r * Math.sin(t) * (radius - THREE.Math.randFloatSpread(0, noise));
+    const t = i * PHI;
+    const r = Math.sqrt(i) / Math.sqrt(n);
+    const x = r * Math.cos(t) * (radius - THREE.Math.randFloat(0, noise));
+    const y = r * Math.sin(t) * (radius - THREE.Math.randFloatSpread(0, noise));
 
     vertices.push([x, y]);
   }
@@ -285,8 +293,8 @@ function init() {
   // 2.5. reduce triangle count on mobile for better performance
   if (isMobile) {
     // Keep only every other triangle (50% reduction)
-    var reducedIndices = [];
-    for (var idx = 0; idx < indices.length; idx += 6) {
+    const reducedIndices = [];
+    for (let idx = 0; idx < indices.length; idx += 6) {
       // Each triangle is 3 indices, skip every other triangle
       if (idx + 2 < indices.length) {
         reducedIndices.push(indices[idx]);
@@ -298,10 +306,10 @@ function init() {
   }
 
   // 3. create displacement splines
-  var pointsX = [];
-  var pointsY = [];
-  var segmentsX = CONFIG.splineStepsX;
-  var segmentsY = CONFIG.splineStepsY;
+  const pointsX = [];
+  const pointsY = [];
+  const segmentsX = CONFIG.splineStepsX;
+  const segmentsY = CONFIG.splineStepsY;
 
   for (i = 0; i <= segmentsX; i++) {
     pointsX.push(
@@ -322,8 +330,8 @@ function init() {
     );
   }
 
-  var splineX = new THREE.CatmullRomCurve3(pointsX);
-  var splineY = new THREE.CatmullRomCurve3(pointsY);
+  const splineX = new THREE.CatmullRomCurve3(pointsX);
+  const splineY = new THREE.CatmullRomCurve3(pointsY);
 
   // line geometries for testing
 
@@ -338,18 +346,18 @@ function init() {
   //root.add(new THREE.Line(g, m));
 
   // 4. generate geometry (maybe find a cheaper way to do this)
-  var geometry = new THREE.Geometry();
-  var shapeScale = 0.95;
+  const geometry = new THREE.Geometry();
+  const shapeScale = 0.95;
 
   for (i = 0; i < indices.length; i += 3) {
     // build the face
-    var v0 = vertices[indices[i]];
-    var v1 = vertices[indices[i + 1]];
-    var v2 = vertices[indices[i + 2]];
+    let v0 = vertices[indices[i]];
+    let v1 = vertices[indices[i + 1]];
+    let v2 = vertices[indices[i + 2]];
 
     // calculate centroid
-    var cx = (v0[0] + v1[0] + v2[0]) / 3;
-    var cy = (v0[1] + v1[1] + v2[1]) / 3;
+    const cx = (v0[0] + v1[0] + v2[0]) / 3;
+    const cy = (v0[1] + v1[1] + v2[1]) / 3;
 
     // translate, scale, un-translate
     v0 = [(v0[0] - cx) * shapeScale + cx, (v0[1] - cy) * shapeScale + cy];
@@ -357,26 +365,26 @@ function init() {
     v2 = [(v2[0] - cx) * shapeScale + cx, (v2[1] - cy) * shapeScale + cy];
 
     // draw the face to a shape
-    var shape = new THREE.Shape();
+    const shape = new THREE.Shape();
     shape.moveTo(v0[0], v0[1]);
     shape.lineTo(v1[0], v1[1]);
     shape.lineTo(v2[0], v2[1]);
 
     // use the shape to create a geometry
-    var shapeGeometry = new THREE.ExtrudeGeometry(shape, {
+    const shapeGeometry = new THREE.ExtrudeGeometry(shape, {
       amount: CONFIG.extrudeAmount,
       bevelEnabled: false,
     });
 
     // offset z vector components based on the two splines
     for (j = 0; j < shapeGeometry.vertices.length; j++) {
-      var v = shapeGeometry.vertices[j];
-      var ux = THREE.Math.clamp(
+      const v = shapeGeometry.vertices[j];
+      const ux = THREE.Math.clamp(
         THREE.Math.mapLinear(v.x, -radius, radius, 0.0, 1.0),
         0.0,
         1.0
       );
-      var uy = THREE.Math.clamp(
+      const uy = THREE.Math.clamp(
         THREE.Math.mapLinear(v.y, -radius, radius, 0.0, 1.0),
         0.0,
         1.0
@@ -393,19 +401,19 @@ function init() {
   geometry.center();
 
   // 5. feed the geometry to the animation
-  var animation = new Animation(geometry);
+  const animation = new Animation(geometry);
   root.add(animation);
 
   // interactive
-  var paused = false;
+  let paused = false;
 
   // post processing - define early so we can use in update callback
   // Reduce bloom quality on mobile for better performance
   // Higher threshold = only bright parts bloom (only on bass hits)
-  var bloomPass = new THREE.BloomPass(2.0, 25, 4, isMobile ? 256 : 512); // Threshold 2.0 = only bloom on peaks
+  const bloomPass = new THREE.BloomPass(2.0, 25, 4, isMobile ? 256 : 512); // Threshold 2.0 = only bloom on peaks
 
   // Radial blur shader for atmospheric background effect
-  var RadialBlurShader = {
+  const RadialBlurShader = {
     uniforms: {
       tDiffuse: { type: "t", value: null },
       resolution: {
@@ -453,73 +461,73 @@ function init() {
     ].join("\n"),
   };
 
-  var radialBlurPass = new THREE.ShaderPass(RadialBlurShader);
-  var copyPass = new THREE.ShaderPass(THREE.CopyShader);
+  const radialBlurPass = new THREE.ShaderPass(RadialBlurShader);
+  const copyPass = new THREE.ShaderPass(THREE.CopyShader);
   root.initPostProcessing([bloomPass, radialBlurPass, copyPass]);
 
   // Get access to the geometry vertices for speaker cone effect
-  var positions = animation.geometry.attributes.position.array;
-  var originalPositions = new Float32Array(positions.length);
-  for (var i = 0; i < positions.length; i++) {
+  const positions = animation.geometry.attributes.position.array;
+  const originalPositions = new Float32Array(positions.length);
+  for (let i = 0; i < positions.length; i++) {
     originalPositions[i] = positions[i];
   }
 
-  var frameCount = 0; // For throttling vertex updates
-  var cameraTime = 0; // For camera movement timing
-  var originalCameraPos = { x: 0, y: 0, z: 90 }; // Store original camera position after zoom-in
-  var upwardPanStartTime = 160.06; // 2:40:06 - when upward pan begins
-  var upwardPanSpeed = 2.125; // Units per second to pan upward (SUPER slow)
-  var upwardTiltSpeed = 10; // Degrees per second to tilt camera upward
-  var upwardPanEnabled = false; // Track if pan/tilt has been enabled
+  let frameCount = 0; // For throttling vertex updates
+  let cameraTime = 0; // For camera movement timing
+  const originalCameraPos = { x: 0, y: 0, z: 90 }; // Store original camera position after zoom-in
+  const upwardPanStartTime = 160.06; // 2:40:06 - when upward pan begins
+  const upwardPanSpeed = 2.125; // Units per second to pan upward (SUPER slow)
+  const upwardTiltSpeed = 10; // Degrees per second to tilt camera upward
+  let upwardPanEnabled = false; // Track if pan/tilt has been enabled
 
   // Intro zoom settings
-  var dropTime = 31.5; // Time in seconds when the drop hits
-  var zoomDuration = 2.0; // Duration of zoom-in animation in seconds
-  var introZoomDistance = 1000; // Starting zoomed-out distance
-  var preDropZoomDistance = 450; // Slightly closer before the drop (subtle zoom)
-  var finalZoomDistance = 90; // Final zoomed-in distance
-  var hasZoomedIn = false;
-  var introZoomDuration = 32.0; // Duration of subtle intro zoom (first 30 seconds)
+  const dropTime = 31.5; // Time in seconds when the drop hits
+  const zoomDuration = 2.0; // Duration of zoom-in animation in seconds
+  const introZoomDistance = 1000; // Starting zoomed-out distance
+  const preDropZoomDistance = 450; // Slightly closer before the drop (subtle zoom)
+  const finalZoomDistance = 90; // Final zoomed-in distance
+  let hasZoomedIn = false;
+  const introZoomDuration = 32.0; // Duration of subtle intro zoom (first 30 seconds)
 
   // Second drop zoom settings (breakdown at 1:35) - same pattern as first drop
-  var secondBreakdownStart = 95.0; // 1:35 - breakdown starts (like 0 seconds in intro)
-  var secondIntroZoomDuration = 30.0; // 30 seconds of subtle zoom (95-125)
-  var secondDropTime = 127; // 2:06.5 - second drop (95 + 31.5 seconds)
-  var hasSecondZoom = false;
+  const secondBreakdownStart = 95.0; // 1:35 - breakdown starts (like 0 seconds in intro)
+  const secondIntroZoomDuration = 30.0; // 30 seconds of subtle zoom (95-125)
+  const secondDropTime = 127; // 2:06.5 - second drop (95 + 31.5 seconds)
+  let hasSecondZoom = false;
 
   // CSS filter inversion at second drop
-  var invertFilterApplied = false;
-  var invertFilterRemoved = false;
-  var threeContainer = document.getElementById("three-container");
-  var threeBlurWrapper = document.getElementById("three-blur-wrapper");
+  let invertFilterApplied = false;
+  let invertFilterRemoved = false;
+  const threeContainer = document.getElementById("three-container");
+  const threeBlurWrapper = document.getElementById("three-blur-wrapper");
 
   // Triangle canvas fade out timing
-  var triangleFadeOutStart = 185; // 3:05
-  var triangleFadeOutEnd = 215; // 3:35
-  var triangleFadeOutDuration = triangleFadeOutEnd - triangleFadeOutStart; // 30 seconds
+  const triangleFadeOutStart = 185; // 3:05
+  const triangleFadeOutEnd = 215; // 3:35
+  const triangleFadeOutDuration = triangleFadeOutEnd - triangleFadeOutStart; // 30 seconds
 
   // Triangle canvas blur timing
-  var triangleBlurStart = 178; // 2:58
-  var triangleBlurEnd = 215; // 3:35 (when fade out completes)
-  var triangleBlurDuration = triangleBlurEnd - triangleBlurStart; // 37 seconds
+  const triangleBlurStart = 178; // 2:58
+  const triangleBlurEnd = 215; // 3:35 (when fade out completes)
+  const triangleBlurDuration = triangleBlurEnd - triangleBlurStart; // 37 seconds
 
   // Camera zoom out timing
-  var cameraZoomOutStart = 165; // 2:45
-  var cameraZoomOutEnd = 215; // 3:35 (when fade out completes)
-  var cameraZoomOutDuration = cameraZoomOutEnd - cameraZoomOutStart; // 50 seconds
-  var cameraZoomOutDistance = 300; // How far to pull back (added to current Z position)
+  const cameraZoomOutStart = 165; // 2:45
+  const cameraZoomOutEnd = 215; // 3:35 (when fade out completes)
+  const cameraZoomOutDuration = cameraZoomOutEnd - cameraZoomOutStart; // 50 seconds
+  const cameraZoomOutDistance = 300; // How far to pull back (added to current Z position)
 
   // Camera roving settings
-  var beatsPerCycle = 64; // Number of beats for position orbit
-  var beatsPerLookCycle = 128; // Number of beats for look direction (tilt/pan)
-  var bpm = 120;
-  var secondsPerBeat = 60 / bpm;
-  var cycleDuration = beatsPerCycle * secondsPerBeat; // Position cycle time
-  var lookCycleDuration = beatsPerLookCycle * secondsPerBeat; // Look cycle time
+  const beatsPerCycle = 64; // Number of beats for position orbit
+  const beatsPerLookCycle = 128; // Number of beats for look direction (tilt/pan)
+  const bpm = 120;
+  const secondsPerBeat = 60 / bpm;
+  const cycleDuration = beatsPerCycle * secondsPerBeat; // Position cycle time
+  const lookCycleDuration = beatsPerLookCycle * secondsPerBeat; // Look cycle time
 
   // Scene rotation settings
-  var beatsPerRotation = 192; // Full rotation every 192 beats (50% slower than 128)
-  var rotationDuration = beatsPerRotation * secondsPerBeat; // Time for full 360° rotation
+  const beatsPerRotation = 192; // Full rotation every 192 beats (50% slower than 128)
+  const rotationDuration = beatsPerRotation * secondsPerBeat; // Time for full 360° rotation
 
   root.addUpdateCallback(function () {
     if (paused) return;
@@ -530,16 +538,16 @@ function init() {
     // Only increment camera time if audio is playing
     if (audioReactive && audioElement && !audioElement.paused) {
       cameraTime += 1 / 30;
-      window.musicTime = audioElement.currentTime; // Use actual audio time for accuracy
+      SORSARI.musicTime = audioElement.currentTime; // Use actual audio time for accuracy
     }
 
     // Get current audio playback time
-    var currentTime = audioElement ? audioElement.currentTime : 0;
+    const currentTime = audioElement ? audioElement.currentTime : 0;
 
     // Camera zoom out from 2:45 to 3:35 (165s to 215s) - pull camera back on Z axis
-    var cameraZoomOutOffset = 0;
+    let cameraZoomOutOffset = 0;
     if (currentTime >= cameraZoomOutStart) {
-      var zoomOutProgress = Math.min(
+      const zoomOutProgress = Math.min(
         (currentTime - cameraZoomOutStart) / cameraZoomOutDuration,
         1.0
       );
@@ -550,9 +558,9 @@ function init() {
     // FIRST DROP SEQUENCE (0-33.5 seconds)
     if (currentTime < introZoomDuration) {
       // Stage 1: Subtle intro zoom (0-30 seconds) - very slow zoom in
-      var introProgress = currentTime / introZoomDuration;
+      const introProgress = currentTime / introZoomDuration;
       // Ease in-out for smooth subtle zoom
-      var easedIntroProgress =
+      const easedIntroProgress =
         introProgress < 0.5
           ? 2 * introProgress * introProgress
           : 1 - Math.pow(-2 * introProgress + 2, 2) / 2;
@@ -565,9 +573,9 @@ function init() {
       currentTime < dropTime + zoomDuration
     ) {
       // Stage 2: Big zoom-in at the drop (31.5-33.5 seconds)
-      var zoomProgress = (currentTime - dropTime) / zoomDuration;
+      const zoomProgress = (currentTime - dropTime) / zoomDuration;
       // Ease out cubic for smooth deceleration
-      var easedProgress = 1 - Math.pow(1 - zoomProgress, 3);
+      const easedProgress = 1 - Math.pow(1 - zoomProgress, 3);
       // Interpolate camera Z position from pre-drop distance to final
       root.camera.position.z =
         preDropZoomDistance +
@@ -587,9 +595,9 @@ function init() {
       currentTime < secondBreakdownStart + secondIntroZoomDuration
     ) {
       // Subtle zoom out during breakdown (95-125 seconds, 30 seconds)
-      var secondIntroProgress =
+      const secondIntroProgress =
         (currentTime - secondBreakdownStart) / secondIntroZoomDuration;
-      var easedSecondIntroProgress =
+      const easedSecondIntroProgress =
         secondIntroProgress < 0.5
           ? 2 * secondIntroProgress * secondIntroProgress
           : 1 - Math.pow(-2 * secondIntroProgress + 2, 2) / 2;
@@ -602,8 +610,8 @@ function init() {
       currentTime < secondDropTime + zoomDuration
     ) {
       // Big zoom back in at second drop (126.5-128.5 seconds)
-      var secondZoomProgress = (currentTime - secondDropTime) / zoomDuration;
-      var easedSecondProgress = 1 - Math.pow(1 - secondZoomProgress, 3);
+      const secondZoomProgress = (currentTime - secondDropTime) / zoomDuration;
+      const easedSecondProgress = 1 - Math.pow(1 - secondZoomProgress, 3);
       root.camera.position.z =
         preDropZoomDistance +
         (finalZoomDistance - preDropZoomDistance) * easedSecondProgress +
@@ -621,18 +629,18 @@ function init() {
     }
 
     // Audio reactivity - only use actual bass from audio
-    var bass = getAudioData();
+    const bass = getAudioData();
 
     // Fade in canvas opacity from 13 to 30 seconds
-    var fadeInStart = 13.0; // Start fading at 13 seconds
-    var fadeInEnd = 30.0; // Finish fading at 30 seconds
-    var currentAudioTime = audioElement ? audioElement.currentTime : 0;
+    const fadeInStart = 13.0; // Start fading at 13 seconds
+    const fadeInEnd = 30.0; // Finish fading at 30 seconds
+    const currentAudioTime = audioElement ? audioElement.currentTime : 0;
     if (currentAudioTime < fadeInStart) {
       // Before 13 seconds - stay at 0 opacity
       animation.material.uniforms["opacity"].value = 0.0;
     } else if (currentAudioTime < fadeInEnd) {
       // Between 13-30 seconds - fade from 0 to 1
-      var fadeProgress =
+      const fadeProgress =
         (currentAudioTime - fadeInStart) / (fadeInEnd - fadeInStart);
       animation.material.uniforms["opacity"].value = fadeProgress;
     } else {
@@ -642,8 +650,9 @@ function init() {
 
     // Rotate the entire scene slowly - full rotation every 128 beats
     if (audioReactive && audioElement && !audioElement.paused) {
-      var rotationProgress = (cameraTime % rotationDuration) / rotationDuration; // 0 to 1
-      var rotationAngle = (rotationProgress * (Math.PI * 2)) / 8; // 0 to 2π (360°)
+      const rotationProgress =
+        (cameraTime % rotationDuration) / rotationDuration; // 0 to 1
+      const rotationAngle = (rotationProgress * (Math.PI * 2)) / 8; // 0 to 2π (360°)
       animation.rotation.z = rotationAngle; // Rotate around Z axis
     }
 
@@ -659,7 +668,7 @@ function init() {
     animation.material.uniforms["metalness"].value = 0.3 + bass * 0.7;
 
     // Kick detection and color flash (using drums track)
-    var drumsBass = getDrumsBass();
+    const drumsBass = getDrumsBass();
     if (drumsBass > kickThreshold) {
       // Kick detected - flash to pink
       colorFlashAmount = Math.min(1.0, colorFlashAmount + 0.3);
@@ -669,12 +678,12 @@ function init() {
     }
 
     // Interpolate between default color and kick color
-    var currentColor = defaultColor.clone().lerp(kickColor, colorFlashAmount);
+    const currentColor = defaultColor.clone().lerp(kickColor, colorFlashAmount);
     animation.material.uniforms["diffuse"].value.copy(currentColor);
 
     // Update bloom intensity - ONLY bloom on strong bass hits
     // Bass threshold: only bloom when bass > 0.5 (true peak moments only)
-    var bloomIntensity = 0.0; // No bloom by default
+    let bloomIntensity = 0.0; // No bloom by default
     if (bass > 0.5) {
       // Scale bloom intensity based on how much bass exceeds threshold
       bloomIntensity = (bass - 0.5) * 2.0; // Amplify the bloom on peaks
@@ -690,15 +699,15 @@ function init() {
       !audioElement.paused &&
       hasZoomedIn // Only start roving after zoom-in completes
     ) {
-      var cycleProgress = (cameraTime % cycleDuration) / cycleDuration; // 0 to 1
-      var angle = cycleProgress * Math.PI * 2; // Full circle
+      const cycleProgress = (cameraTime % cycleDuration) / cycleDuration; // 0 to 1
+      const angle = cycleProgress * Math.PI * 2; // Full circle
 
       // Smooth easing - slow at start/end, faster in middle
-      var eased = 0.5 - Math.cos(angle) * 0.5;
+      const eased = 0.5 - Math.cos(angle) * 0.5;
 
       // Gentle orbital movement
-      var orbitRadius = 15; // How far to move from center
-      var heightVariation = 8; // Vertical movement
+      const orbitRadius = 15; // How far to move from center
+      const heightVariation = 8; // Vertical movement
 
       root.camera.position.x =
         originalCameraPos.x + Math.sin(angle) * orbitRadius * eased;
@@ -708,14 +717,14 @@ function init() {
         originalCameraPos.z + Math.cos(angle) * 5 * eased + cameraZoomOutOffset; // Slight zoom in/out + zoom out offset
 
       // Camera look direction - tilts and pans over 128 beats
-      var lookProgress = (cameraTime % lookCycleDuration) / lookCycleDuration; // 0 to 1
-      var lookAngle = lookProgress * Math.PI * 2;
+      const lookProgress = (cameraTime % lookCycleDuration) / lookCycleDuration; // 0 to 1
+      const lookAngle = lookProgress * Math.PI * 2;
 
       // Create a look target that orbits around the center point - EXTREME ANGLES
-      var lookOffset = 80; // Much larger offset for dramatic angle changes
-      var lookTargetX = Math.sin(lookAngle) * lookOffset;
-      var lookTargetY = Math.sin(lookAngle * 1.5) * lookOffset; // Full vertical tilt
-      var lookTargetZ = Math.cos(lookAngle * 0.8) * lookOffset * 0.8; // Strong depth variation
+      const lookOffset = 80; // Much larger offset for dramatic angle changes
+      const lookTargetX = Math.sin(lookAngle) * lookOffset;
+      const lookTargetY = Math.sin(lookAngle * 1.5) * lookOffset; // Full vertical tilt
+      const lookTargetZ = Math.cos(lookAngle * 0.8) * lookOffset * 0.8; // Strong depth variation
 
       // Look at the offset target instead of dead center
       root.camera.lookAt(lookTargetX, lookTargetY, lookTargetZ);
@@ -728,16 +737,16 @@ function init() {
         upwardPanEnabled = true;
       }
 
-      var timeSincePanStart = currentTime - upwardPanStartTime;
-      var upwardPanOffset = timeSincePanStart * upwardPanSpeed; // Pan upwards SUPER slow
-      var tiltAmount = timeSincePanStart * upwardTiltSpeed; // Tilt upward over time
+      const timeSincePanStart = currentTime - upwardPanStartTime;
+      const upwardPanOffset = timeSincePanStart * upwardPanSpeed; // Pan upwards SUPER slow
+      const tiltAmount = timeSincePanStart * upwardTiltSpeed; // Tilt upward over time
 
       // Move the camera position upward (increase Y position)
       root.camera.position.y = upwardPanOffset;
 
       // Tilt camera upward by looking at a point that moves up over time
       // Start looking at (0, 0, 0) and gradually look higher and higher
-      var lookAtY = tiltAmount; // Look target moves upward
+      const lookAtY = tiltAmount; // Look target moves upward
       root.camera.lookAt(0, lookAtY, 0);
     }
 
@@ -776,9 +785,9 @@ function init() {
     }
 
     // Blur triangle canvas wrapper from 2:58 to 3:35 (178s to 215s)
-    var triangleBlur = 0;
+    let triangleBlur = 0;
     if (currentTime >= triangleBlurStart && currentTime <= triangleBlurEnd) {
-      var blurProgress =
+      const blurProgress =
         (currentTime - triangleBlurStart) / triangleBlurDuration;
       triangleBlur = blurProgress * 15; // Blur up to 15px
     } else if (currentTime > triangleBlurEnd) {
@@ -796,9 +805,9 @@ function init() {
       currentTime >= triangleFadeOutStart &&
       currentTime <= triangleFadeOutEnd
     ) {
-      var fadeProgress =
+      const fadeProgress =
         (currentTime - triangleFadeOutStart) / triangleFadeOutDuration;
-      var opacity = 1.0 - fadeProgress; // Fade from 1.0 to 0.0
+      const opacity = 1.0 - fadeProgress; // Fade from 1.0 to 0.0
       if (threeContainer) {
         threeContainer.style.opacity = opacity;
       }
@@ -810,25 +819,25 @@ function init() {
     }
 
     // Speaker cone effect - throttle more on mobile for better performance
-    var throttleInterval = isMobile ? 6 : 2; // Update every 6 frames on mobile, 2 on desktop
+    const throttleInterval = isMobile ? 6 : 2; // Update every 6 frames on mobile, 2 on desktop
     if (frameCount % throttleInterval === 0) {
-      var speakerRadius = 15; // radius of the "speaker cone" area
-      var speakerPush = bass * 8.0; // how much to push in/out
+      const speakerRadius = 15; // radius of the "speaker cone" area
+      const speakerPush = bass * 8.0; // how much to push in/out
 
-      for (var i = 0; i < positions.length; i += 3) {
-        var x = originalPositions[i];
-        var y = originalPositions[i + 1];
-        var z = originalPositions[i + 2];
+      for (let i = 0; i < positions.length; i += 3) {
+        const x = originalPositions[i];
+        const y = originalPositions[i + 1];
+        const z = originalPositions[i + 2];
 
-        var distFromCenter = Math.sqrt(x * x + y * y + z * z);
+        const distFromCenter = Math.sqrt(x * x + y * y + z * z);
 
         // Only affect vertices within speaker radius
         if (distFromCenter < speakerRadius) {
-          var influence = 1.0 - distFromCenter / speakerRadius; // stronger at center
-          var pushAmount = speakerPush * influence;
+          const influence = 1.0 - distFromCenter / speakerRadius; // stronger at center
+          const pushAmount = speakerPush * influence;
 
           // Push along the normal direction (away from center)
-          var length = distFromCenter || 0.001;
+          const length = distFromCenter || 0.001;
           positions[i] = x + (x / length) * pushAmount;
           positions[i + 1] = y + (y / length) * pushAmount;
           positions[i + 2] = z + (z / length) * pushAmount;
@@ -848,8 +857,8 @@ function init() {
   function handleInteraction(clientX, clientY) {
     if (paused || audioReactive) return; // Don't override audio reactivity
 
-    var px = clientX / window.innerWidth;
-    var py = clientY / window.innerHeight;
+    const px = clientX / window.innerWidth;
+    const py = clientY / window.innerHeight;
 
     animation.material.uniforms["uD"].value = 2.0 + px * 16;
     animation.material.uniforms["uA"].value = py * 4.0;
@@ -921,18 +930,18 @@ function init() {
 ////////////////////
 
 function Animation(modelGeometry) {
-  var geometry = new THREE.BAS.ModelBufferGeometry(modelGeometry);
+  const geometry = new THREE.BAS.ModelBufferGeometry(modelGeometry);
 
-  var i, j;
+  let i, j;
 
-  var aOffsetAmplitude = geometry.createAttribute("aOffsetAmplitude", 2);
-  var positionBuffer = geometry.getAttribute("position").array;
-  var x, y, distance;
+  const aOffsetAmplitude = geometry.createAttribute("aOffsetAmplitude", 2);
+  const positionBuffer = geometry.getAttribute("position").array;
+  let x, y, distance;
 
   for (i = 0; i < aOffsetAmplitude.array.length; i += 12) {
     // 6 * 2
-    var offset = THREE.Math.randFloat(1, 4);
-    var amplitude = THREE.Math.randFloat(0.5, 1.0);
+    const offset = THREE.Math.randFloat(1, 4);
+    const amplitude = THREE.Math.randFloat(0.5, 1.0);
 
     x = 0;
     y = 0;
@@ -955,8 +964,8 @@ function Animation(modelGeometry) {
     }
   }
 
-  var aColor = geometry.createAttribute("color", 3);
-  var color = new THREE.Color();
+  const aColor = geometry.createAttribute("color", 3);
+  const color = new THREE.Color();
 
   for (i = 0; i < aColor.array.length; i += 18) {
     // 6 * 3
@@ -969,7 +978,7 @@ function Animation(modelGeometry) {
     }
   }
 
-  var material = new THREE.BAS.StandardAnimationMaterial(
+  const material = new THREE.BAS.StandardAnimationMaterial(
     {
       shading: THREE.FlatShading,
       vertexColors: THREE.VertexColors,
@@ -1106,7 +1115,7 @@ THREERoot.prototype = {
     return this.objects[key];
   },
   remove: function (o) {
-    var object;
+    let object;
 
     if (typeof o === "string") {
       object = this.objects[o];
@@ -1133,8 +1142,8 @@ THREERoot.prototype = {
     this.renderer.render(this.scene, this.camera);
   },
   resize: function () {
-    var width = window.innerWidth;
-    var height = window.innerHeight;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
 
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
@@ -1145,12 +1154,12 @@ THREERoot.prototype = {
     });
   },
   initPostProcessing: function (passes) {
-    var size = this.renderer.getSize();
-    var pixelRatio = this.renderer.getPixelRatio();
+    const size = this.renderer.getSize();
+    const pixelRatio = this.renderer.getPixelRatio();
     size.width *= pixelRatio;
     size.height *= pixelRatio;
 
-    var composer = (this.composer = new THREE.EffectComposer(
+    const composer = (this.composer = new THREE.EffectComposer(
       this.renderer,
       new THREE.WebGLRenderTarget(size.width, size.height, {
         minFilter: THREE.LinearFilter,
@@ -1160,11 +1169,11 @@ THREERoot.prototype = {
       })
     ));
 
-    var renderPass = new THREE.RenderPass(this.scene, this.camera);
+    const renderPass = new THREE.RenderPass(this.scene, this.camera);
     this.composer.addPass(renderPass);
 
-    for (var i = 0; i < passes.length; i++) {
-      var pass = passes[i];
+    for (let i = 0; i < passes.length; i++) {
+      const pass = passes[i];
       pass.renderToScreen = i === passes.length - 1;
       this.composer.addPass(pass);
     }
@@ -1177,8 +1186,8 @@ THREERoot.prototype = {
 
     this.addResizeCallback(
       function () {
-        var width = window.innerWidth;
-        var height = window.innerHeight;
+        const width = window.innerWidth;
+        const height = window.innerHeight;
 
         composer.setSize(width * pixelRatio, height * pixelRatio);
       }.bind(this)
@@ -1188,9 +1197,9 @@ THREERoot.prototype = {
 
 //// UTILS
 
-var utils = {
+const utils = {
   extend: function (dst, src) {
-    for (var key in src) {
+    for (const key in src) {
       dst[key] = src[key];
     }
 
