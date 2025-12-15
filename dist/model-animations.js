@@ -51,7 +51,7 @@
   let time = 0;
 
   // 360 spin variables
-  const spinTimes = [30.89, 127.03]; // Spin moments at 30.89s and 2:07.03 (127.03s)
+  const spinTimes = [30.89, 126.9]; // Spin moments at 30.89s and 2:07.03 (127.03s)
   const spinDuration = 1.0; // Duration of spin in seconds
   const blendDuration = 0.5; // Duration to blend from locked to oscillating after spin
   let currentSpinIndex = -1;
@@ -180,7 +180,7 @@
   // CENTER MODEL BRIGHTNESS
   // =====================
   const brightnessStartValue = 0.1; // Start at 0.1 brightness
-  const brightnessEndTime = 0.07; // Reach full brightness by 0.07 seconds
+  const brightnessEndTime = 11.5; // Reach full brightness by 11.5 seconds
   const brightnessEndValue = 1.0; // Full brightness
 
   // Throttle zoom animation to 30fps (every other frame)
