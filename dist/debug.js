@@ -192,6 +192,62 @@
     htmlElement.style.filter = `hue-rotate(${hueRotate}deg)`;
   });
 
+  // Console log capture for debug menu
+  const consoleLogQueue = [];
+  const maxLogs = 50;
+  const debugLogElement = document.getElementById("debug-log");
+
+  // Intercept console methods
+  const originalLog = console.log;
+  const originalWarn = console.warn;
+  const originalError = console.error;
+
+  function captureLog(type, args) {
+    const message = args
+      .map((arg) => {
+        if (typeof arg === "object") {
+          try {
+            return JSON.stringify(arg);
+          } catch (e) {
+            return String(arg);
+          }
+        }
+        return String(arg);
+      })
+      .join(" ");
+
+    const logEntry = `[${type}] ${message}`;
+    consoleLogQueue.push(logEntry);
+
+    // Keep only recent logs
+    if (consoleLogQueue.length > maxLogs) {
+      consoleLogQueue.shift();
+    }
+
+    // Update debug log display on next interval
+    if (debugLogElement) {
+      debugLogElement.innerHTML = consoleLogQueue
+        .map((log) => `<div>${log}</div>`)
+        .reverse()
+        .join("");
+    }
+  }
+
+  console.log = function (...args) {
+    originalLog.apply(console, args);
+    captureLog("LOG", args);
+  };
+
+  console.warn = function (...args) {
+    originalWarn.apply(console, args);
+    captureLog("WARN", args);
+  };
+
+  console.error = function (...args) {
+    originalError.apply(console, args);
+    captureLog("ERROR", args);
+  };
+
   // Depth-of-field blur sliders
   // Expose blur values in SORSARI namespace so stars.js can access them
   window.SORSARI = window.SORSARI || {};
@@ -205,38 +261,46 @@
   // Layer 1 blur slider
   const layer1BlurSlider = document.getElementById("layer1-blur-slider");
   const layer1BlurValue = document.getElementById("layer1-blur-value");
-  layer1BlurSlider.addEventListener("input", function () {
-    SORSARI.dofBlur.layer1 = parseFloat(this.value);
-    layer1BlurValue.textContent = this.value;
-  });
+  if (layer1BlurSlider && layer1BlurValue) {
+    layer1BlurSlider.addEventListener("input", function () {
+      SORSARI.dofBlur.layer1 = parseFloat(this.value);
+      layer1BlurValue.textContent = this.value;
+    });
+  }
 
   // Layer 2 blur slider
   const layer2BlurSlider = document.getElementById("layer2-blur-slider");
   const layer2BlurValue = document.getElementById("layer2-blur-value");
-  layer2BlurSlider.addEventListener("input", function () {
-    SORSARI.dofBlur.layer2 = parseFloat(this.value);
-    layer2BlurValue.textContent = this.value;
-  });
+  if (layer2BlurSlider && layer2BlurValue) {
+    layer2BlurSlider.addEventListener("input", function () {
+      SORSARI.dofBlur.layer2 = parseFloat(this.value);
+      layer2BlurValue.textContent = this.value;
+    });
+  }
 
   // Layer 3 blur slider
   const layer3BlurSlider = document.getElementById("layer3-blur-slider");
   const layer3BlurValue = document.getElementById("layer3-blur-value");
-  layer3BlurSlider.addEventListener("input", function () {
-    SORSARI.dofBlur.layer3 = parseFloat(this.value);
-    layer3BlurValue.textContent = this.value;
-  });
+  if (layer3BlurSlider && layer3BlurValue) {
+    layer3BlurSlider.addEventListener("input", function () {
+      SORSARI.dofBlur.layer3 = parseFloat(this.value);
+      layer3BlurValue.textContent = this.value;
+    });
+  }
 
   // Triangles blur slider
   const trianglesBlurSlider = document.getElementById("triangles-blur-slider");
   const trianglesBlurValue = document.getElementById("triangles-blur-value");
   const threeContainer = document.getElementById("three-container");
-  trianglesBlurSlider.addEventListener("input", function () {
-    SORSARI.dofBlur.triangles = parseFloat(this.value);
-    trianglesBlurValue.textContent = this.value;
-    if (threeContainer) {
-      threeContainer.style.filter = `blur(${this.value}px)`;
-    }
-  });
+  if (trianglesBlurSlider && trianglesBlurValue) {
+    trianglesBlurSlider.addEventListener("input", function () {
+      SORSARI.dofBlur.triangles = parseFloat(this.value);
+      trianglesBlurValue.textContent = this.value;
+      if (threeContainer) {
+        threeContainer.style.filter = `blur(${this.value}px)`;
+      }
+    });
+  }
 
   // Debug log to screen (exposed via SORSARI namespace)
   SORSARI.debugLog = function (msg) {
@@ -260,13 +324,20 @@
     const terrorModelViewer = document.getElementById("terror-model-viewer");
     const visualizerCanvas = document.getElementById("visualizer-canvas");
 
-    // console.log("[Debug] starsCanvasBtn:", starsCanvasBtn);
-    // console.log("[Debug] threeContainerBtn:", threeContainerBtn);
-    // console.log("[Debug] modelsBtn:", modelsBtn);
-    // console.log("[Debug] starsCanvas:", starsCanvas);
-    // console.log("[Debug] threeContainerEl:", threeContainerEl);
-    // console.log("[Debug] modelViewer:", modelViewer);
-    // console.log("[Debug] terrorModelViewer:", terrorModelViewer);
+    console.log("[Canvas Toggle] Button elements found:", {
+      starsCanvasBtn: !!starsCanvasBtn,
+      threeContainerBtn: !!threeContainerBtn,
+      modelsBtn: !!modelsBtn,
+      visualizerBtn: !!visualizerBtn,
+    });
+
+    console.log("[Canvas Toggle] DOM elements found:", {
+      starsCanvas: !!starsCanvas,
+      threeContainerEl: !!threeContainerEl,
+      modelViewer: !!modelViewer,
+      terrorModelViewer: !!terrorModelViewer,
+      visualizerCanvas: !!visualizerCanvas,
+    });
 
     // Track visibility state
     let starsCanvasVisible = true;
@@ -275,10 +346,13 @@
 
     if (starsCanvasBtn && starsCanvas) {
       console.log("[Debug] Attaching stars canvas toggle");
-      starsCanvasBtn.addEventListener("click", function () {
+      starsCanvasBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
         console.log("[Debug] Stars canvas toggle clicked");
         starsCanvasVisible = !starsCanvasVisible;
-        starsCanvas.style.display = starsCanvasVisible ? "block" : "none";
+        starsCanvas.style.visibility = starsCanvasVisible
+          ? "visible"
+          : "hidden";
         starsCanvasBtn.textContent = starsCanvasVisible ? "Stars ✓" : "Stars ✗";
         starsCanvasBtn.style.opacity = starsCanvasVisible ? "1" : "0.5";
       });
@@ -290,12 +364,13 @@
 
     if (threeContainerBtn && threeContainerEl) {
       console.log("[Debug] Attaching three container toggle");
-      threeContainerBtn.addEventListener("click", function () {
+      threeContainerBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
         console.log("[Debug] Three container toggle clicked");
         threeContainerVisible = !threeContainerVisible;
-        threeContainerEl.style.display = threeContainerVisible
-          ? "block"
-          : "none";
+        threeContainerEl.style.visibility = threeContainerVisible
+          ? "visible"
+          : "hidden";
         threeContainerBtn.textContent = threeContainerVisible
           ? "Triangles ✓"
           : "Triangles ✗";
@@ -309,11 +384,14 @@
 
     if (modelsBtn && modelViewer && terrorModelViewer) {
       console.log("[Debug] Attaching models toggle");
-      modelsBtn.addEventListener("click", function () {
+      modelsBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
         console.log("[Debug] Models toggle clicked");
         modelsVisible = !modelsVisible;
-        modelViewer.style.display = modelsVisible ? "block" : "none";
-        terrorModelViewer.style.display = modelsVisible ? "block" : "none";
+        modelViewer.style.visibility = modelsVisible ? "visible" : "hidden";
+        terrorModelViewer.style.visibility = modelsVisible
+          ? "visible"
+          : "hidden";
         modelsBtn.textContent = modelsVisible ? "Models ✓" : "Models ✗";
         modelsBtn.style.opacity = modelsVisible ? "1" : "0.5";
       });
@@ -326,10 +404,13 @@
 
     if (visualizerBtn && visualizerCanvas) {
       console.log("[Debug] Attaching visualizer toggle");
-      visualizerBtn.addEventListener("click", function () {
+      visualizerBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
         console.log("[Debug] Visualizer toggle clicked");
         visualizerVisible = !visualizerVisible;
-        visualizerCanvas.style.display = visualizerVisible ? "block" : "none";
+        visualizerCanvas.style.visibility = visualizerVisible
+          ? "visible"
+          : "hidden";
         visualizerBtn.textContent = visualizerVisible
           ? "Visualizer ✓"
           : "Visualizer ✗";
@@ -343,10 +424,36 @@
   }
 
   // Run setup when DOM is ready
+  // Retry mechanism: elements may not be loaded when script runs
+  let setupAttempts = 0;
+  const maxAttempts = 50;
+
+  function trySetupCanvasToggles() {
+    setupAttempts++;
+
+    // Check if critical elements exist
+    const starsCanvas = document.getElementById("stars-canvas");
+    const threeContainer = document.getElementById("three-container");
+
+    if (starsCanvas && threeContainer) {
+      console.log("[Canvas Toggle] Elements found on attempt " + setupAttempts);
+      setupCanvasToggles();
+    } else if (setupAttempts < maxAttempts) {
+      // Retry in 100ms
+      setTimeout(trySetupCanvasToggles, 100);
+    } else {
+      console.warn(
+        "[Canvas Toggle] Failed to find elements after " +
+          maxAttempts +
+          " attempts"
+      );
+    }
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", setupCanvasToggles);
+    document.addEventListener("DOMContentLoaded", trySetupCanvasToggles);
   } else {
-    setupCanvasToggles();
+    trySetupCanvasToggles();
   }
 
   // Enable device motion function (for iOS 13+)

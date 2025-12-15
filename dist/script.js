@@ -18,7 +18,7 @@ const isMobile =
   );
 
 const CONFIG = {
-  pointCount: isMobile ? 400 : 4000, // Optimized for mobile - 400 points for better performance
+  pointCount: isMobile ? 400 : 3000, // Optimized for mobile - 400 points for better performance
   extrudeAmount: 2.0,
   splineStepsX: isMobile ? 2 : 3, // Decent quality on mobile
   splineStepsY: isMobile ? 2 : 3, // Decent quality on mobile
@@ -457,7 +457,7 @@ function init() {
   // post processing - define early so we can use in update callback
   // Reduce bloom quality on mobile for better performance
   // Higher threshold = only bright parts bloom (only on bass hits)
-  const bloomPass = new THREE.BloomPass(2.0, 25, 4, isMobile ? 256 : 512); // Threshold 2.0 = only bloom on peaks
+  const bloomPass = new THREE.BloomPass(2.0, 25, 4, 256); // Threshold 2.0 = only bloom on peaks, 256 resolution for better performance
 
   // Radial blur shader for atmospheric background effect
   const RadialBlurShader = {
@@ -835,9 +835,9 @@ function init() {
           }
 
           // Build filter string - horizontal flip adds Y offset
-          const yOffset = flipHorizontal ? chromaticOffset * 0.5 : 0;
-          const redOpacity = 0.44 * glitchOpacity;
-          const blueOpacity = 0.52 * glitchOpacity;
+          const yOffset = flipHorizontal ? chromaticOffset * 0.44 : 0;
+          const redOpacity = 0.34 * glitchOpacity;
+          const blueOpacity = 0.42 * glitchOpacity;
           const filter = `drop-shadow(${
             chromaticOffset * dir
           }px ${yOffset}px 0px rgba(255, 0, 0, ${redOpacity})) drop-shadow(${
@@ -852,6 +852,17 @@ function init() {
         applyGlitchEffect(mobileLeftImage, "mobileLeftImage");
         applyGlitchEffect(mobileRightImage, "mobileRightImage");
         applyGlitchEffect(trackTitle, "trackTitle");
+
+        // Apply chromatic aberration to TERROR model
+        const terrorModelViewer = document.querySelector(
+          "#terror-model-viewer"
+        );
+        if (terrorModelViewer) {
+          const redOpacity = 0.44 * glitchOpacity;
+          const blueOpacity = 0.52 * glitchOpacity;
+          const terrorFilter = `drop-shadow(${chromaticOffset}px 0px 0px rgba(255, 0, 0, ${redOpacity})) drop-shadow(-${chromaticOffset}px 0px 0px rgba(0, 0, 255, ${blueOpacity}))`;
+          terrorModelViewer.style.filter = terrorFilter;
+        }
       } else {
         // Remove chromatic aberration and reset transforms when not in drop
         if (bottomImage) {
@@ -869,6 +880,14 @@ function init() {
         if (trackTitle) {
           trackTitle.style.filter = "";
           ghostMirrorState.trackTitle.active = false;
+        }
+
+        // Remove chromatic aberration from TERROR model
+        const terrorModelViewer = document.querySelector(
+          "#terror-model-viewer"
+        );
+        if (terrorModelViewer) {
+          terrorModelViewer.style.filter = "";
         }
       }
     }
@@ -1598,7 +1617,7 @@ function THREERoot(params) {
       zFar: 10000,
       createCameraControls: true,
       autoStart: true,
-      pixelRatio: Math.min(window.devicePixelRatio, 1.5), // Cap at 1.5 for better performance
+      pixelRatio: Math.min(window.devicePixelRatio, 1.25), // Cap at 1.25 for better performance
     },
     params
   );
