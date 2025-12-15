@@ -423,7 +423,10 @@
   // =====================
   // TEXT FADE IN ANIMATION
   // =====================
-  const textFadeInDuration = 20.0;
+  const textFadeInDelay = 8.0; // Delay before fade starts
+  const textFadeInDuration = 16.0; // Duration of fade
+  const textFadeInStart = textFadeInDelay; // When fade actually starts
+  const textFadeInEnd = textFadeInDelay + textFadeInDuration; // When fade completes
   const sorsariText = document.getElementById("sorsari-text");
   const trackTitle = document.getElementById("track-title");
   const terrorModel = document.getElementById("terror-model-viewer");
@@ -439,8 +442,19 @@
   function animateTextFadeIn() {
     const currentTime = SORSARI.musicTime || 0;
 
-    if (currentTime < textFadeInDuration) {
-      const opacity = currentTime / textFadeInDuration;
+    if (currentTime < textFadeInStart) {
+      // Before fade starts - keep opacity at 0
+      const opacity = 0;
+      sorsariText.style.opacity = opacity;
+      trackTitle.style.opacity = opacity * 0.7;
+      terrorModel.style.opacity = opacity;
+      bottomImage.style.opacity = opacity;
+      mobileLeftImage.style.opacity = opacity;
+      mobileRightImage.style.opacity = opacity;
+    } else if (currentTime < textFadeInEnd) {
+      // During fade - gradually increase opacity
+      const fadeProgress = (currentTime - textFadeInStart) / textFadeInDuration;
+      const opacity = fadeProgress;
       sorsariText.style.opacity = opacity;
       trackTitle.style.opacity = opacity * 0.7;
       terrorModel.style.opacity = opacity;

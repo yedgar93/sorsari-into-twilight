@@ -137,6 +137,32 @@
             class="debug-slider-input"
           />
         </div>
+        <div class="debug-slider-section">
+          <label class="debug-slider-label">Canvas Layers:</label>
+          <div style="display: flex; gap: 5px; flex-wrap: wrap">
+            <button
+              id="toggle-stars-canvas"
+              class="debug-btn"
+              style="flex: 1; min-width: 80px"
+            >
+              Stars ✓
+            </button>
+            <button
+              id="toggle-three-container"
+              class="debug-btn"
+              style="flex: 1; min-width: 80px"
+            >
+              Triangles ✓
+            </button>
+            <button
+              id="toggle-models"
+              class="debug-btn"
+              style="flex: 1; min-width: 80px"
+            >
+              Models ✓
+            </button>
+          </div>
+        </div>
         <div id="time-display">Time: 0:00</div>
         <div id="debug-log">Debug log...</div>
       </div>
@@ -146,7 +172,9 @@
     <script src="dist/debug.js"></script>
 
     <!-- Background layers -->
-    <canvas id="stars-canvas"></canvas>
+    <div id="stars-canvas-wrapper">
+      <canvas id="stars-canvas"></canvas>
+    </div>
     <div id="three-blur-wrapper">
       <div id="three-container"></div>
     </div>

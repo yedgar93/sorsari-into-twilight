@@ -171,6 +171,85 @@
     console.log(msg);
   };
 
+  // Canvas layer visibility toggles - wait for DOM to be ready
+  function setupCanvasToggles() {
+    const starsCanvasBtn = document.getElementById("toggle-stars-canvas");
+    const threeContainerBtn = document.getElementById("toggle-three-container");
+    const modelsBtn = document.getElementById("toggle-models");
+    const starsCanvas = document.getElementById("stars-canvas");
+    const threeContainerEl = document.getElementById("three-container");
+    const modelViewer = document.getElementById("model-viewer");
+    const terrorModelViewer = document.getElementById("terror-model-viewer");
+
+    console.log("[Debug] starsCanvasBtn:", starsCanvasBtn);
+    console.log("[Debug] threeContainerBtn:", threeContainerBtn);
+    console.log("[Debug] modelsBtn:", modelsBtn);
+    console.log("[Debug] starsCanvas:", starsCanvas);
+    console.log("[Debug] threeContainerEl:", threeContainerEl);
+    console.log("[Debug] modelViewer:", modelViewer);
+    console.log("[Debug] terrorModelViewer:", terrorModelViewer);
+
+    // Track visibility state
+    let starsCanvasVisible = true;
+    let threeContainerVisible = true;
+    let modelsVisible = true;
+
+    if (starsCanvasBtn && starsCanvas) {
+      console.log("[Debug] Attaching stars canvas toggle");
+      starsCanvasBtn.addEventListener("click", function () {
+        console.log("[Debug] Stars canvas toggle clicked");
+        starsCanvasVisible = !starsCanvasVisible;
+        starsCanvas.style.display = starsCanvasVisible ? "block" : "none";
+        starsCanvasBtn.textContent = starsCanvasVisible ? "Stars ✓" : "Stars ✗";
+        starsCanvasBtn.style.opacity = starsCanvasVisible ? "1" : "0.5";
+      });
+    } else {
+      console.log(
+        "[Debug] Could not attach stars canvas toggle - missing elements"
+      );
+    }
+
+    if (threeContainerBtn && threeContainerEl) {
+      console.log("[Debug] Attaching three container toggle");
+      threeContainerBtn.addEventListener("click", function () {
+        console.log("[Debug] Three container toggle clicked");
+        threeContainerVisible = !threeContainerVisible;
+        threeContainerEl.style.display = threeContainerVisible
+          ? "block"
+          : "none";
+        threeContainerBtn.textContent = threeContainerVisible
+          ? "Triangles ✓"
+          : "Triangles ✗";
+        threeContainerBtn.style.opacity = threeContainerVisible ? "1" : "0.5";
+      });
+    } else {
+      console.log(
+        "[Debug] Could not attach three container toggle - missing elements"
+      );
+    }
+
+    if (modelsBtn && modelViewer && terrorModelViewer) {
+      console.log("[Debug] Attaching models toggle");
+      modelsBtn.addEventListener("click", function () {
+        console.log("[Debug] Models toggle clicked");
+        modelsVisible = !modelsVisible;
+        modelViewer.style.display = modelsVisible ? "block" : "none";
+        terrorModelViewer.style.display = modelsVisible ? "block" : "none";
+        modelsBtn.textContent = modelsVisible ? "Models ✓" : "Models ✗";
+        modelsBtn.style.opacity = modelsVisible ? "1" : "0.5";
+      });
+    } else {
+      console.log("[Debug] Could not attach models toggle - missing elements");
+    }
+  }
+
+  // Run setup when DOM is ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", setupCanvasToggles);
+  } else {
+    setupCanvasToggles();
+  }
+
   // Enable device motion function (for iOS 13+)
   SORSARI.enableDeviceMotion = async function () {
     const btn = document.getElementById("enable-motion-btn");

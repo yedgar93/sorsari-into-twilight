@@ -10,8 +10,9 @@
   "use strict";
 
   const starsCanvas = document.getElementById("stars-canvas");
-  // Disable alpha channel for better performance (stars don't need transparency)
-  const starsCtx = starsCanvas.getContext("2d", { alpha: false });
+  const starsCanvasWrapper = document.getElementById("stars-canvas-wrapper");
+  // Enable alpha channel for hyperspace layer (needs transparency for blue stars)
+  const starsCtx = starsCanvas.getContext("2d", { alpha: true });
 
   // Set initial canvas size
   starsCanvas.width = window.innerWidth;
@@ -23,6 +24,18 @@
   const shakeIntensityStar = 1.5; // 1-2px for stars
   const firstDropShakeEndTime = 95; // 1:35 - stop shaking at breakdown
   const secondDropShakeEndTime = 192; // 3:12 - stop shaking
+
+  // Canvas zoom parameters
+  const zoomStartScale = 2.0; // Start zoomed in 2x
+  const zoomOutStart = 0; // Start zooming out immediately
+  const zoomOutEnd = 20; // Finish zooming out at 20 seconds
+  const zoomOutDuration = zoomOutEnd - zoomOutStart;
+
+  // Canvas blur parameters
+  const blurStartAmount = 2.0; // Start with 4px blur
+  const blurOutStart = 4; // Start removing blur immediately
+  const blurOutEnd = 24; // Finish removing blur at 24 seconds
+  const blurOutDuration = blurOutEnd - blurOutStart;
 
   // Create star layers with different speeds for parallax and depth-of-field
   const starLayers = [
@@ -164,6 +177,68 @@
     });
   });
 
+  // =====================
+  // HYPERSPACE LAYER (Flying towards screen)
+  // =====================
+  const hyperspaceLayer = {
+    stars: [],
+    count: 40, // Fewer stars for performance
+    minZ: 0.1,
+    maxZ: 1.0,
+    speed: 0.015, // How fast they move towards camera
+    fadeInStart: 15, // Start fading in at 15 seconds
+    fadeInEnd: 27, // Fully visible at 27 seconds
+    maxOpacity: 0.85, // Maximum opacity
+  };
+
+  // Reverse direction layer (active from 1:03.76 to 2:07)
+  const reverseDirectionLayer = {
+    stars: [],
+    count: 40,
+    minZ: 0.1,
+    maxZ: 1.0,
+    speed: 0.015,
+    fadeInStart: 63.76, // 1:03.76 - start fading in
+    fadeInEnd: 63.76, // Instantly visible
+    fadeOutStart: 127, // 2:07 - start fading out
+    fadeOutEnd: 127, // Instantly invisible
+    maxOpacity: 0.85,
+  };
+
+  // Initialize hyperspace stars
+  for (let i = 0; i < hyperspaceLayer.count; i++) {
+    hyperspaceLayer.stars.push({
+      x: (Math.random() - 0.5) * starsCanvas.width * 2, // Wider spread
+      y: (Math.random() - 0.5) * starsCanvas.height * 2, // Taller spread
+      z:
+        Math.random() * (hyperspaceLayer.maxZ - hyperspaceLayer.minZ) +
+        hyperspaceLayer.minZ, // 0.1 to 1.0
+      baseZ: 0, // Will be set on init
+    });
+  }
+
+  // Initialize reverse direction stars
+  for (let i = 0; i < reverseDirectionLayer.count; i++) {
+    reverseDirectionLayer.stars.push({
+      x: (Math.random() - 0.5) * starsCanvas.width * 2,
+      y: (Math.random() - 0.5) * starsCanvas.height * 2,
+      z:
+        Math.random() *
+          (reverseDirectionLayer.maxZ - reverseDirectionLayer.minZ) +
+        reverseDirectionLayer.minZ,
+      baseZ: 0,
+    });
+  }
+
+  // Set initial Z values
+  hyperspaceLayer.stars.forEach((star) => {
+    star.baseZ = star.z;
+  });
+
+  reverseDirectionLayer.stars.forEach((star) => {
+    star.baseZ = star.z;
+  });
+
   // Animate stars
   function animateStars() {
     const currentTime = SORSARI.musicTime || 0;
@@ -202,6 +277,22 @@
     starsCanvas.style.filter =
       blurAmount > 0 ? `blur(${blurAmount}px)` : "none";
 
+    // Calculate zoom scale (zoom out from 2x to 1x over first 20 seconds)
+    let zoomScale = 1.0;
+    if (currentTime < zoomOutEnd) {
+      const zoomProgress = currentTime / zoomOutDuration;
+      zoomScale = zoomStartScale - (zoomStartScale - 1.0) * zoomProgress;
+    }
+
+    // Calculate wrapper blur amount (blur out from 4px to 0px over first 24 seconds)
+    let wrapperBlurAmount = 0;
+    if (currentTime < blurOutEnd) {
+      const blurProgress = currentTime / blurOutDuration;
+      wrapperBlurAmount = blurStartAmount - blurStartAmount * blurProgress;
+    }
+    starsCanvasWrapper.style.filter =
+      wrapperBlurAmount > 0 ? `blur(${wrapperBlurAmount}px)` : "none";
+
     // Apply screen shake to stars canvas during drops
     const isInFirstDrop =
       currentTime >= firstDropTime && currentTime < firstDropShakeEndTime;
@@ -219,13 +310,13 @@
         // In shake phase
         const shakeOffsetX = (Math.random() - 0.5) * shakeIntensityStar;
         const shakeOffsetY = (Math.random() - 0.5) * shakeIntensityStar;
-        starsCanvas.style.transform = `translate(${shakeOffsetX}px, ${shakeOffsetY}px)`;
+        starsCanvas.style.transform = `translate(${shakeOffsetX}px, ${shakeOffsetY}px) scale(${zoomScale})`;
       } else {
         // In delay phase
-        starsCanvas.style.transform = "translate(0, 0)";
+        starsCanvas.style.transform = `scale(${zoomScale})`;
       }
     } else {
-      starsCanvas.style.transform = "translate(0, 0)";
+      starsCanvas.style.transform = `scale(${zoomScale})`;
     }
 
     // Create trail effect during drops by not fully clearing canvas
@@ -395,6 +486,116 @@
           starsCtx.fill();
         }
       });
+    });
+
+    // =====================
+    // RENDER HYPERSPACE LAYER
+    // =====================
+    // Calculate hyperspace layer opacity based on fade-in timing
+    let hyperspaceOpacity = 0;
+    if (
+      currentTime >= hyperspaceLayer.fadeInStart &&
+      currentTime < hyperspaceLayer.fadeInEnd
+    ) {
+      // Fade in from 0 to maxOpacity
+      const fadeProgress =
+        (currentTime - hyperspaceLayer.fadeInStart) /
+        (hyperspaceLayer.fadeInEnd - hyperspaceLayer.fadeInStart);
+      hyperspaceOpacity = fadeProgress * hyperspaceLayer.maxOpacity;
+    } else if (currentTime >= hyperspaceLayer.fadeInEnd) {
+      // Fully visible after fade-in completes
+      hyperspaceOpacity = hyperspaceLayer.maxOpacity;
+    }
+
+    // Update and render hyperspace stars (flying towards screen)
+    hyperspaceLayer.stars.forEach((star) => {
+      // Normal mode: move star towards camera (decrease Z)
+      star.z -= hyperspaceLayer.speed;
+
+      // Reset to far distance when it reaches camera
+      if (star.z <= hyperspaceLayer.minZ) {
+        star.z = hyperspaceLayer.maxZ;
+        // Randomize position for next cycle
+        star.x = (Math.random() - 0.5) * starsCanvas.width * 2;
+        star.y = (Math.random() - 0.5) * starsCanvas.height * 2;
+      }
+
+      // Calculate perspective projection (closer = larger and more centered)
+      const scale = star.z; // 0.1 to 1.0
+      const screenX = starsCanvas.width / 2 + star.x * scale;
+      const screenY = starsCanvas.height / 2 + star.y * scale;
+
+      // Only draw if on screen and hyperspace is visible
+      if (
+        hyperspaceOpacity > 0 &&
+        screenX >= -10 &&
+        screenX <= starsCanvas.width + 10 &&
+        screenY >= -10 &&
+        screenY <= starsCanvas.height + 10
+      ) {
+        // Size DECREASES as star gets closer (shrinks towards center for depth effect)
+        const size = 2.5 - (1 - star.z) * 2; // 2.5 to 0.5 pixels (shrinks as Z decreases)
+        // Opacity combines star depth with layer fade-in
+        const starDepthOpacity = 0.3 + (1 - star.z) * 0.5; // 0.3 to 0.8 based on depth
+        const finalOpacity = starDepthOpacity * hyperspaceOpacity; // Apply layer opacity
+
+        starsCtx.fillStyle = `rgba(200, 220, 255, ${finalOpacity})`;
+        starsCtx.beginPath();
+        const x = Math.floor(screenX);
+        const y = Math.floor(screenY);
+        starsCtx.arc(x, y, size, 0, Math.PI * 2);
+        starsCtx.fill();
+      }
+    });
+
+    // Update and render reverse direction stars (flying away from screen, 1:03.76 to 2:07)
+    reverseDirectionLayer.stars.forEach((star) => {
+      // Move star AWAY from camera (increase Z)
+      star.z += reverseDirectionLayer.speed;
+
+      // Reset to close distance when it goes too far
+      if (star.z >= reverseDirectionLayer.maxZ) {
+        star.z = reverseDirectionLayer.minZ;
+        // Randomize position for next cycle
+        star.x = (Math.random() - 0.5) * starsCanvas.width * 2;
+        star.y = (Math.random() - 0.5) * starsCanvas.height * 2;
+      }
+
+      // Calculate reverse direction layer opacity
+      let reverseOpacity = 0;
+      if (
+        currentTime >= reverseDirectionLayer.fadeInStart &&
+        currentTime < reverseDirectionLayer.fadeOutStart
+      ) {
+        reverseOpacity = reverseDirectionLayer.maxOpacity;
+      }
+
+      // Calculate perspective projection
+      const scale = star.z;
+      const screenX = starsCanvas.width / 2 + star.x * scale;
+      const screenY = starsCanvas.height / 2 + star.y * scale;
+
+      // Only draw if on screen and reverse layer is visible
+      if (
+        reverseOpacity > 0 &&
+        screenX >= -10 &&
+        screenX <= starsCanvas.width + 10 &&
+        screenY >= -10 &&
+        screenY <= starsCanvas.height + 10
+      ) {
+        // Size DECREASES as star gets closer (shrinks towards center for depth effect)
+        const size = 2.5 - (1 - star.z) * 2;
+        // Opacity combines star depth with layer opacity
+        const starDepthOpacity = 0.3 + (1 - star.z) * 0.5;
+        const finalOpacity = starDepthOpacity * reverseOpacity;
+
+        starsCtx.fillStyle = `rgba(200, 220, 255, ${finalOpacity})`;
+        starsCtx.beginPath();
+        const x = Math.floor(screenX);
+        const y = Math.floor(screenY);
+        starsCtx.arc(x, y, size, 0, Math.PI * 2);
+        starsCtx.fill();
+      }
     });
 
     // Reset filter after all layers are drawn
