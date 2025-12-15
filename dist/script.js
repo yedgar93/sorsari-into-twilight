@@ -19,7 +19,7 @@ const isMobile =
   );
 
 const CONFIG = {
-  pointCount: isMobile ? 800 : 4000, // Balanced for mobile - still looks good but performs well
+  pointCount: isMobile ? 600 : 4000, // Optimized for mobile - 600 points still looks great but much faster
   extrudeAmount: 2.0,
   splineStepsX: isMobile ? 2 : 3, // Decent quality on mobile
   splineStepsY: isMobile ? 2 : 3, // Decent quality on mobile
@@ -66,6 +66,10 @@ const audioTimingOffset = 0; // Positive = delay visualizer, Negative = advance 
 // Bass history buffer for timing offset
 const bassHistory = [];
 const maxHistoryLength = 300; // Store up to 10 seconds at 30fps
+
+// Page visibility detection for battery savings
+let isPageVisible = true;
+let reducedFrameCounter = 0;
 
 function initAudio() {
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -421,6 +425,16 @@ function init() {
   // interactive
   let paused = false;
 
+  // Page visibility detection listener
+  document.addEventListener("visibilitychange", function () {
+    isPageVisible = !document.hidden;
+    if (isPageVisible) {
+      console.log("Page visible - resuming full speed rendering");
+    } else {
+      console.log("Page hidden - reducing rendering frequency");
+    }
+  });
+
   // post processing - define early so we can use in update callback
   // Reduce bloom quality on mobile for better performance
   // Higher threshold = only bright parts bloom (only on bass hits)
@@ -485,6 +499,34 @@ function init() {
   for (let i = 0; i < positions.length; i++) {
     originalPositions[i] = positions[i];
   }
+
+  // Pre-calculate speaker cone vertices for optimization
+  const speakerRadius = 15;
+  const speakerVertices = []; // Indices of vertices within speaker radius
+
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = positions[i];
+    const y = positions[i + 1];
+    const z = positions[i + 2];
+    const distFromCenter = Math.sqrt(x * x + y * y + z * z);
+
+    if (distFromCenter < speakerRadius) {
+      speakerVertices.push({
+        index: i,
+        distance: distFromCenter,
+        influence: 1.0 - distFromCenter / speakerRadius,
+        normalX: x / (distFromCenter || 0.001),
+        normalY: y / (distFromCenter || 0.001),
+        normalZ: z / (distFromCenter || 0.001),
+      });
+    }
+  }
+
+  console.log(
+    `Speaker cone optimization: ${
+      speakerVertices.length
+    } vertices pre-calculated (out of ${positions.length / 3} total)`
+  );
 
   let frameCount = 0; // For throttling vertex updates
   let cameraTime = 0; // For camera movement timing
@@ -681,28 +723,33 @@ function init() {
     animation.material.uniforms["roughness"].value = 0.5 - bass * 0.3;
     animation.material.uniforms["metalness"].value = 0.3 + bass * 0.7;
 
-    // Kick detection and color flash (using drums track)
-    const drumsBass = getDrumsBass();
-    if (drumsBass > kickThreshold) {
-      // Kick detected - flash to pink
-      colorFlashAmount = Math.min(1.0, colorFlashAmount + 0.3);
-    } else {
-      // Fade back to default color
-      colorFlashAmount = Math.max(0.0, colorFlashAmount - 0.05);
+    // Kick detection and color flash (using drums track) - throttled to every 2 frames
+    if (frameCount % 2 === 0) {
+      const drumsBass = getDrumsBass();
+      if (drumsBass > kickThreshold) {
+        // Kick detected - flash to pink
+        colorFlashAmount = Math.min(1.0, colorFlashAmount + 0.3);
+      } else {
+        // Fade back to default color
+        colorFlashAmount = Math.max(0.0, colorFlashAmount - 0.05);
+      }
+
+      // Interpolate between default color and kick color
+      const currentColor = defaultColor
+        .clone()
+        .lerp(kickColor, colorFlashAmount);
+      animation.material.uniforms["diffuse"].value.copy(currentColor);
     }
 
-    // Interpolate between default color and kick color
-    const currentColor = defaultColor.clone().lerp(kickColor, colorFlashAmount);
-    animation.material.uniforms["diffuse"].value.copy(currentColor);
-
-    // Update bloom intensity - ONLY bloom on strong bass hits
-    // Bass threshold: only bloom when bass > 0.5 (true peak moments only)
-    let bloomIntensity = 0.0; // No bloom by default
-    if (bass > 0.5) {
-      // Scale bloom intensity based on how much bass exceeds threshold
-      bloomIntensity = (bass - 0.5) * 2.0; // Amplify the bloom on peaks
+    // Update bloom intensity - throttled to every 3 frames
+    if (frameCount % 3 === 0) {
+      let bloomIntensity = 0.0; // No bloom by default
+      if (bass > 0.5) {
+        // Scale bloom intensity based on how much bass exceeds threshold
+        bloomIntensity = (bass - 0.5) * 2.0; // Amplify the bloom on peaks
+      }
+      bloomPass.copyUniforms["opacity"].value = bloomIntensity;
     }
-    bloomPass.copyUniforms["opacity"].value = bloomIntensity;
 
     // Camera roving - smooth circular motion that returns to origin
     // Only move camera if controls are not enabled AND audio is playing AND zoom-in is complete
@@ -832,35 +879,23 @@ function init() {
       }
     }
 
-    // Speaker cone effect - throttle more on mobile for better performance
+    // Speaker cone effect - optimized with pre-calculated vertices
     const throttleInterval = isMobile ? 6 : 2; // Update every 6 frames on mobile, 2 on desktop
     if (frameCount % throttleInterval === 0) {
-      const speakerRadius = 15; // radius of the "speaker cone" area
       const speakerPush = bass * 8.0; // how much to push in/out
 
-      for (let i = 0; i < positions.length; i += 3) {
-        const x = originalPositions[i];
-        const y = originalPositions[i + 1];
-        const z = originalPositions[i + 2];
+      // Only loop through pre-calculated speaker vertices (much faster!)
+      for (let j = 0; j < speakerVertices.length; j++) {
+        const vertex = speakerVertices[j];
+        const i = vertex.index;
+        const pushAmount = speakerPush * vertex.influence;
 
-        const distFromCenter = Math.sqrt(x * x + y * y + z * z);
-
-        // Only affect vertices within speaker radius
-        if (distFromCenter < speakerRadius) {
-          const influence = 1.0 - distFromCenter / speakerRadius; // stronger at center
-          const pushAmount = speakerPush * influence;
-
-          // Push along the normal direction (away from center)
-          const length = distFromCenter || 0.001;
-          positions[i] = x + (x / length) * pushAmount;
-          positions[i + 1] = y + (y / length) * pushAmount;
-          positions[i + 2] = z + (z / length) * pushAmount;
-        } else {
-          // Reset vertices outside speaker area
-          positions[i] = x;
-          positions[i + 1] = y;
-          positions[i + 2] = z;
-        }
+        // Push along the pre-calculated normal direction
+        positions[i] = originalPositions[i] + vertex.normalX * pushAmount;
+        positions[i + 1] =
+          originalPositions[i + 1] + vertex.normalY * pushAmount;
+        positions[i + 2] =
+          originalPositions[i + 2] + vertex.normalZ * pushAmount;
       }
 
       animation.geometry.attributes.position.needsUpdate = true;
@@ -1143,6 +1178,16 @@ THREERoot.prototype = {
     }
   },
   tick: function () {
+    // Page visibility optimization - reduce rendering when tab is hidden
+    if (!isPageVisible) {
+      reducedFrameCounter++;
+      // Only render every 10th frame when page is hidden (6fps instead of 60fps)
+      if (reducedFrameCounter % 10 !== 0) {
+        requestAnimationFrame(this.tick);
+        return;
+      }
+    }
+
     this.update();
     this.render();
     requestAnimationFrame(this.tick);
