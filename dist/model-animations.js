@@ -358,11 +358,26 @@
   let resetTimeout;
   let userHasMoved = false;
 
+  // Helper: allow link only when audio is playing and
+  // the UI fade-in has been active for at least 1s
+  function canOpenTerrorLink() {
+    const audio = window.SORSARI && SORSARI.audioElement;
+    const playing = !!(audio && !audio.paused && !audio.ended);
+    const t = (window.SORSARI && (SORSARI.musicTime || (audio && audio.currentTime))) || 0;
+    // Allow only after the global text/model fade-in has been active >= 1s
+    const fadeGuardPassed = t >= (textFadeInStart + 1.0);
+    return playing && fadeGuardPassed;
+  }
+
   // Double click/tap to open SoundCloud link
   let lastTapTime = 0;
   const doubleTapDelay = 300;
 
-  terrorModelViewer.addEventListener("dblclick", () => {
+  terrorModelViewer.addEventListener("dblclick", (e) => {
+    if (!canOpenTerrorLink()) {
+      e.preventDefault();
+      return;
+    }
     window.open("https://soundcloud.com/terrorhythm", "_blank");
   });
 
@@ -395,6 +410,10 @@
 
     if (tapLength < doubleTapDelay && tapLength > 0) {
       e.preventDefault();
+      if (!canOpenTerrorLink()) {
+        lastTapTime = 0;
+        return;
+      }
       window.open("https://soundcloud.com/terrorhythm", "_blank");
       lastTapTime = 0;
       return;

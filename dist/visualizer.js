@@ -73,7 +73,22 @@
     let lastOpacity = -1;
     let lastStrokeStyle = "";
 
+    let visualizerFrameCount = 0;
+
     function visualize() {
+      // FPS scaling - skip frames based on CONFIG.fpsScale from script.js
+      const fpsScale = window.CONFIG?.fpsScale || 1.0;
+      const frameSkipInterval = Math.max(1, Math.round(1 / fpsScale));
+      visualizerFrameCount++;
+
+      if (
+        frameSkipInterval > 1 &&
+        visualizerFrameCount % frameSkipInterval !== 0
+      ) {
+        requestAnimationFrame(visualize);
+        return;
+      }
+
       requestAnimationFrame(visualize);
 
       // Calculate opacity based on current time

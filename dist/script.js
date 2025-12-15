@@ -26,6 +26,10 @@ const CONFIG = {
   // Radial blur settings - adjust these to change blur strength
   radialBlurStrength: isMobile ? 0.7 : 0.9, // Higher = more blur (0.0 - 1.0)
   radialBlurSamples: isMobile ? 8 : 12, // Higher = smoother blur but slower (4 - 16)
+
+  // Global FPS controller - scales down rendering frequency
+  // 1.0 = 60fps, 0.5 = 30fps, 0.33 = 20fps, 0.25 = 15fps
+  fpsScale: 0.8,
 };
 
 // Audio setup
@@ -836,8 +840,8 @@ function init() {
 
           // Build filter string - horizontal flip adds Y offset
           const yOffset = flipHorizontal ? chromaticOffset * 0.44 : 0;
-          const redOpacity = 0.34 * glitchOpacity;
-          const blueOpacity = 0.42 * glitchOpacity;
+          const redOpacity = 0.26 * glitchOpacity;
+          const blueOpacity = 0.34 * glitchOpacity;
           const filter = `drop-shadow(${
             chromaticOffset * dir
           }px ${yOffset}px 0px rgba(255, 0, 0, ${redOpacity})) drop-shadow(${
@@ -1707,14 +1711,25 @@ THREERoot.prototype = {
     }
   },
   tick: function () {
+    // Global FPS scaling - skip frames based on CONFIG.fpsScale
+    // fpsScale of 1.0 = 60fps, 0.5 = 30fps, 0.33 = 20fps, 0.25 = 15fps
+    const frameSkipInterval = Math.max(1, Math.round(1 / CONFIG.fpsScale));
+    reducedFrameCounter++;
+
     // Page visibility optimization - reduce rendering when tab is hidden
     if (!isPageVisible) {
-      reducedFrameCounter++;
       // Only render every 10th frame when page is hidden (6fps instead of 60fps)
       if (reducedFrameCounter % 10 !== 0) {
         requestAnimationFrame(this.tick);
         return;
       }
+    } else if (
+      frameSkipInterval > 1 &&
+      reducedFrameCounter % frameSkipInterval !== 0
+    ) {
+      // Skip frames based on FPS scale when page is visible
+      requestAnimationFrame(this.tick);
+      return;
     }
 
     this.update();

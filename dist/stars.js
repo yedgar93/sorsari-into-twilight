@@ -881,8 +881,19 @@
     // Reset filter after all layers are drawn
     starsCtx.filter = "none";
 
+    // FPS scaling - skip frames based on CONFIG.fpsScale from script.js
+    const fpsScale = window.CONFIG?.fpsScale || 1.0;
+    const frameSkipInterval = Math.max(1, Math.round(1 / fpsScale));
+    starsFrameCount++;
+
+    if (frameSkipInterval > 1 && starsFrameCount % frameSkipInterval !== 0) {
+      requestAnimationFrame(animateStars);
+      return;
+    }
+
     requestAnimationFrame(animateStars);
   }
 
+  let starsFrameCount = 0;
   animateStars();
 })();
