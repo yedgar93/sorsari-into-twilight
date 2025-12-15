@@ -604,6 +604,34 @@ function init() {
   const beatsPerRotation = 192; // Full rotation every 192 beats (50% slower than 128)
   const rotationDuration = beatsPerRotation * secondsPerBeat; // Time for full 360° rotation
 
+  // Parallax depth shift settings
+  const bottomImage = document.getElementById("bottom-image");
+  const mobileLeftImage = document.getElementById("mobile-left-image");
+  const mobileRightImage = document.getElementById("mobile-right-image");
+  const trackTitle = document.getElementById("track-title");
+  const parallaxMaxShift = 3.275; // Maximum pixels to shift (creates breathing effect)
+  const parallaxSensitivity = 0.476; // How much audio affects the shift (0-1)
+
+  // Peak detection for parallax
+  let parallaxPeakLevel = 0;
+  let parallaxPeakDecay = 0.9; // How fast the peak decays (0.9-0.99)
+
+  // Individual parallax offsets for each element (randomized)
+  const parallaxOffsets = {
+    bottomImage: Math.random() * 0.3 - 0.15, // -0.15 to 0.15
+    mobileLeftImage: Math.random() * 0.3 - 0.16,
+    mobileRightImage: Math.random() * 0.3 - 0.15,
+    trackTitle: Math.random() * 0.297 - 0.14,
+  };
+
+  // Random direction multipliers (1 or -1) for each element
+  const parallaxDirections = {
+    bottomImage: Math.random() > 0.5 ? 1 : -1,
+    mobileLeftImage: Math.random() > 0.5 ? 1 : -1,
+    mobileRightImage: Math.random() > 0.5 ? 1 : -1,
+    trackTitle: Math.random() > 0.5 ? 1 : -1,
+  };
+
   root.addUpdateCallback(function () {
     if (paused) return;
 
@@ -623,6 +651,75 @@ function init() {
 
     // Get current audio playback time
     const currentTime = audioElement ? audioElement.currentTime : 0;
+
+    // Apply parallax depth shift to UI elements based on audio peaks
+    if (audioReactive && drumsAnalyser) {
+      // Get frequency data from drums track instead of master
+      drumsAnalyser.getByteFrequencyData(drumsDataArray);
+
+      // Calculate bass level from low frequencies (first 8 bins)
+      let bassSum = 0;
+      for (let i = 0; i < 8; i++) {
+        bassSum += drumsDataArray[i];
+      }
+      const audioLevel = bassSum / (8 * 255); // Normalize to 0-1
+
+      // Peak detection: only respond to peaks above the current peak level
+      if (audioLevel > parallaxPeakLevel) {
+        parallaxPeakLevel = audioLevel; // New peak detected
+      } else {
+        parallaxPeakLevel *= parallaxPeakDecay; // Decay the peak over time
+      }
+
+      // Use the peak level for parallax (creates pulsing effect)
+      const parallaxShift =
+        parallaxPeakLevel * parallaxMaxShift * parallaxSensitivity;
+
+      // Debug log every 30 frames
+      if (frameCount % 30 === 0) {
+        console.log(
+          "Parallax (Drums) - audioLevel:",
+          audioLevel.toFixed(3),
+          "peakLevel:",
+          parallaxPeakLevel.toFixed(3),
+          "shift:",
+          parallaxShift.toFixed(2),
+          "px"
+        );
+      }
+
+      // Apply to bottom image with randomized offset and direction
+      if (bottomImage) {
+        const shift =
+          parallaxShift * parallaxDirections.bottomImage +
+          parallaxOffsets.bottomImage;
+        bottomImage.style.transform = `translateY(${shift}px)`;
+      }
+
+      // Apply to mobile left image with randomized offset and direction
+      if (mobileLeftImage) {
+        const shift =
+          parallaxShift * parallaxDirections.mobileLeftImage +
+          parallaxOffsets.mobileLeftImage;
+        mobileLeftImage.style.transform = `translateY(${shift}px)`;
+      }
+
+      // Apply to mobile right image with randomized offset and direction
+      if (mobileRightImage) {
+        const shift =
+          parallaxShift * parallaxDirections.mobileRightImage +
+          parallaxOffsets.mobileRightImage;
+        mobileRightImage.style.transform = `translateY(${shift}px)`;
+      }
+
+      // Apply to track title - combine with existing translateX and randomized offset/direction
+      if (trackTitle) {
+        const shift =
+          parallaxShift * parallaxDirections.trackTitle +
+          parallaxOffsets.trackTitle;
+        trackTitle.style.transform = `translateX(-50%) translateY(${shift}px)`;
+      }
+    }
 
     // Camera zoom out from 2:45 to 3:35 (165s to 215s) - pull camera back on Z axis
     let cameraZoomOutOffset = 0;
