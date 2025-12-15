@@ -47,7 +47,6 @@
   const blinkingStarFadeInStart = 101; // 1:41 - fade in starts
   const blinkingStarFadeInDuration = 10; // Fade in over 10 seconds
   const blinkingStarFadeOutStart = 125; // 2:05 - fade out starts
-  const blinkingStarFadeOutStart2 = 125; // 2:05
   const blinkingStarFadeOutEnd = 152; // 2:32 - fade out ends (27 seconds duration)
 
   // Screen shake parameters
@@ -131,11 +130,9 @@
 
   // Process kill times
   const starPulsingKillTime = 206; // Kill star pulsing at 3:26
-  const audioAnalysisKillTime = 206; // Kill audio analysis at 3:26
 
   // Process kill flags
   let starPulsingKilled = false;
-  let audioAnalysisKilled = false;
   let starsAnimationKilled = false;
 
   // Device motion tilt offset

@@ -132,7 +132,18 @@ function initAudioWorker() {
 }
 
 function initAudio() {
-  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    // Support both standard and webkit AudioContext (for older Safari/Chrome)
+    const AudioContextClass = window.AudioContext ?? window.webkitAudioContext;
+    if (!AudioContextClass) {
+      console.error("AudioContext not supported in this browser");
+      return;
+    }
+    audioContext = new AudioContextClass();
+  } catch (error) {
+    console.error("Failed to initialize AudioContext:", error);
+    return;
+  }
 
   // Main audio analyser
   analyser = audioContext.createAnalyser();
@@ -523,33 +534,8 @@ function init() {
     originalPositions[i] = positions[i];
   }
 
-  // Pre-calculate speaker cone vertices for optimization
-  const speakerRadius = 15;
-  const speakerVertices = []; // Indices of vertices within speaker radius
-
-  for (let i = 0; i < positions.length; i += 3) {
-    const x = positions[i];
-    const y = positions[i + 1];
-    const z = positions[i + 2];
-    const distFromCenter = Math.sqrt(x * x + y * y + z * z);
-
-    if (distFromCenter < speakerRadius) {
-      speakerVertices.push({
-        index: i,
-        distance: distFromCenter,
-        influence: 1.0 - distFromCenter / speakerRadius,
-        normalX: x / (distFromCenter || 0.001),
-        normalY: y / (distFromCenter || 0.001),
-        normalZ: z / (distFromCenter || 0.001),
-      });
-    }
-  }
-
-  console.log(
-    `Speaker cone optimization: ${
-      speakerVertices.length
-    } vertices pre-calculated (out of ${positions.length / 3} total)`
-  );
+  // Speaker cone optimization disabled - was finding 0 vertices and adding unnecessary computation
+  // If needed in the future, can be re-enabled with proper model center detection
 
   let frameCount = 0; // For throttling vertex updates
   let cameraTime = 0; // For camera movement timing
@@ -629,9 +615,6 @@ function init() {
   const finalChromaticStartTime = 191.72; // 3:12 - start chromatic aberration
   const finalChromaticMaxAmount = 20; // Max pixel offset for chromatic aberration
 
-  // Track current brightness for filter combination
-  let currentBrightness = 0.1;
-
   // Triangles canvas brightness control
   const trianglesStartValue = 0.3; // Start at 0.3 brightness
   const trianglesDelayStart = 15.5; // Stay at 0.3 brightness until 15.5 seconds
@@ -645,9 +628,8 @@ function init() {
   const parallaxKillTime = 190; // Kill parallax shift at 3:10
   const bloomKillTime = 190; // Kill bloom updates at 3:10
   const kickDetectionKillTime = 190; // Kill kick detection at 3:10
-  const screenShakeKillTime = 192; // Kill screen shake at 3:12
-  const starPulsingKillTime = 206; // Kill star pulsing at 3:26
   const audioAnalysisKillTime = 206; // Kill audio analysis at 3:26
+  const screenShakeKillTime = 192; // Kill screen shake at 3:12
   const cameraPanKillTime = 215; // Kill camera pan & tilt at 3:35
   const centerModelKillTime = 215; // Kill center model at 3:35
 
@@ -655,9 +637,8 @@ function init() {
   let parallaxKilled = false;
   let bloomKilled = false;
   let kickDetectionKilled = false;
-  let screenShakeKilled = false;
-  let starPulsingKilled = false;
   let audioAnalysisKilled = false;
+  let screenShakeKilled = false;
   let cameraPanKilled = false;
   let centerModelKilled = false;
   let threeRenderingKilled = false;
@@ -1438,23 +1419,28 @@ function init() {
       }
     }
 
-    // Speaker cone effect - optimized with pre-calculated vertices
+    // Speaker cone effect - bass-reactive pulsing
     const throttleInterval = isMobile ? 6 : 2; // Update every 6 frames on mobile, 2 on desktop
     if (frameCount % throttleInterval === 0) {
       const speakerPush = bass * 8.0; // how much to push in/out
 
-      // Only loop through pre-calculated speaker vertices (much faster!)
-      for (let j = 0; j < speakerVertices.length; j++) {
-        const vertex = speakerVertices[j];
-        const i = vertex.index;
-        const pushAmount = speakerPush * vertex.influence;
+      // Loop through all vertices for speaker cone effect
+      for (let i = 0; i < positions.length; i += 3) {
+        const x = originalPositions[i];
+        const y = originalPositions[i + 1];
+        const z = originalPositions[i + 2];
+        const distFromCenter = Math.sqrt(x * x + y * y + z * z);
 
-        // Push along the pre-calculated normal direction
-        positions[i] = originalPositions[i] + vertex.normalX * pushAmount;
-        positions[i + 1] =
-          originalPositions[i + 1] + vertex.normalY * pushAmount;
-        positions[i + 2] =
-          originalPositions[i + 2] + vertex.normalZ * pushAmount;
+        // Only affect vertices within a reasonable distance
+        if (distFromCenter > 0.1) {
+          const normalX = x / distFromCenter;
+          const normalY = y / distFromCenter;
+          const normalZ = z / distFromCenter;
+
+          positions[i] = originalPositions[i] + normalX * speakerPush;
+          positions[i + 1] = originalPositions[i + 1] + normalY * speakerPush;
+          positions[i + 2] = originalPositions[i + 2] + normalZ * speakerPush;
+        }
       }
 
       animation.geometry.attributes.position.needsUpdate = true;
