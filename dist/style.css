@@ -13,7 +13,7 @@ html {
   image-rendering: -webkit-optimize-contrast;
 }
 
-/* CRT SNES-style pixel blend effect */
+/* CRT SNES-style pixel blend effect with burn-in ghosting */
 /* True SNES resolution: 256x224 pixels = ~6px per pixel on 1920x1080 */
 body::before {
   content: "";
@@ -51,6 +51,11 @@ body::before {
   opacity: 0.54;
   /* filter: invert(1); */
   backdrop-filter: blur(0.75px);
+  box-shadow:
+    /* Ghost layer 1 - slight offset */ inset 0.5px 0.5px 0
+      rgba(0, 0, 0, 0.08),
+    /* Ghost layer 2 - more offset */ inset 1px 1px 0 rgba(0, 0, 0, 0.04),
+    /* Vignette effect */ inset 0 0 80px rgba(0, 0, 0, 0.15);
 }
 
 /* Alternative: Stronger CRT phosphor glow (uncomment to use) */
