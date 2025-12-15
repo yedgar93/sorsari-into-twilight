@@ -12,53 +12,64 @@
     <link rel="stylesheet" href="dist/style.css" />
 
     <!-- Dependencies -->
-    <script src="//cdnjs.cloudflare.com/ajax/libs/three.js/r77/three.min.js"></script>
-    <script src="//cdnjs.cloudflare.com/ajax/libs/gsap/1.18.0/TweenMax.min.js"></script>
-    <script src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/175711/delaunay.js"></script>
-    <script src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/175711/three_post.js"></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r77/three.min.js"
+      integrity="sha384-J0sOZ996O+UCdfXrcX0cVSVjfRvKnoXAw1rsXlFmKkOpfhmXxgtjnN1t9QDbRGR1"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/gsap/1.18.0/TweenMax.min.js"
+      integrity="sha384-Fe7o4IB+X/R42l4ubeFS03yRfSAAB99jbFAEQS6OSH1Sx+vKlefJt3gHPd/H6CO3"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/175711/delaunay.js"
+      integrity="sha384-lVoETraJW2XRgTPrrzIA4cJSvcHNmFtY3elWpDgV3Pf4gu80P3ELIcY6wwozqaQw"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/175711/three_post.js"
+      integrity="sha384-TmJMzD78LYNb4THRj2exJ8mquT8/KVK4KwnQ927vYYXEiflwIZKoAyVEnGuQgEo8"
+      crossorigin="anonymous"
+    ></script>
     <script
       type="module"
       src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"
+      integrity="sha384-ycxtgj7aPUpK6OvsYarejYrITzqdS2Q6xoKkgnKMFoCyS5lQhW2h0OPCeInjM6qi"
+      crossorigin="anonymous"
     ></script>
     <script
       type="text/javascript"
       src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.1/vanilla-tilt.min.js"
+      integrity="sha384-0k1dj5tm+KUH/4vkNk/i90XsjDA8Ltmt+ybcrFoH4t0dgv/WZsPpVBnkhcroX8UL"
+      crossorigin="anonymous"
     ></script>
   </head>
   <body>
     <!-- Debug Window (hidden by default) -->
-    <div id="debug-window" style="display: none">
+    <div id="debug-window" class="hidden">
       <div id="debug-header">Debug Controls</div>
       <div id="debug-content">
-        <button class="debug-btn" onclick="skipToTime(29)">
+        <button class="debug-btn" data-skip-time="29">
           Skip to First Drop (0:31)
         </button>
-        <button class="debug-btn" onclick="skipToTime(93)">
+        <button class="debug-btn" data-skip-time="93">
           Skip to Breakdown (1:35)
         </button>
-        <button class="debug-btn" onclick="skipToTime(125)">
+        <button class="debug-btn" data-skip-time="125">
           Skip to Second Drop (2:07)
         </button>
-        <button class="debug-btn" onclick="skipToTime(158)">
+        <button class="debug-btn" data-skip-time="158">
           Skip to Invert Back (2:40)
         </button>
-        <button class="debug-btn" onclick="skipToTime(190)">
+        <button class="debug-btn" data-skip-time="190">
           Skip to Final Fade Out (3:10)
         </button>
-        <button class="debug-btn" onclick="skipToTime(235)">
+        <button class="debug-btn" data-skip-time="235">
           Skip to Final State (3:55)
         </button>
-        <div
-          style="
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
-          "
-        >
-          <label
-            for="hue-slider"
-            style="display: block; margin-bottom: 8px; font-size: 12px"
-          >
+        <div class="debug-slider-section">
+          <label for="hue-slider" class="debug-slider-label">
             Hue Rotate: <span id="hue-value">0</span>°
           </label>
           <input
@@ -67,178 +78,17 @@
             min="0"
             max="360"
             value="0"
-            style="width: 100%"
+            class="debug-slider-input"
           />
         </div>
         <div id="time-display">Time: 0:00</div>
-        <div
-          id="tilt-display"
-          style="font-size: 11px; margin-top: 5px; opacity: 0.7"
-        >
-          Tilt: X=0, Y=0
-        </div>
-        <div
-          id="debug-log"
-          style="
-            font-size: 10px;
-            margin-top: 5px;
-            opacity: 0.7;
-            max-height: 100px;
-            overflow-y: auto;
-            word-wrap: break-word;
-          "
-        >
-          Debug log...
-        </div>
+        <div id="tilt-display">Tilt: X=0, Y=0</div>
+        <div id="debug-log">Debug log...</div>
       </div>
     </div>
 
-    <script>
-      // Keyboard listener to show debug window when typing "debug"
-      let debugKeyBuffer = "";
-      const debugKeyword = "debug";
-
-      document.addEventListener("keypress", function (e) {
-        debugKeyBuffer += e.key.toLowerCase();
-
-        // Keep only the last 5 characters
-        if (debugKeyBuffer.length > debugKeyword.length) {
-          debugKeyBuffer = debugKeyBuffer.slice(-debugKeyword.length);
-        }
-
-        // Check if "debug" was typed
-        if (debugKeyBuffer === debugKeyword) {
-          const debugWindow = document.getElementById("debug-window");
-          debugWindow.style.display =
-            debugWindow.style.display === "none" ? "block" : "none";
-          debugKeyBuffer = ""; // Reset buffer
-        }
-      });
-
-      // Make debug window draggable
-      const debugWindow = document.getElementById("debug-window");
-      const debugHeader = document.getElementById("debug-header");
-      let isDragging = false;
-      let currentX;
-      let currentY;
-      let initialX;
-      let initialY;
-
-      debugHeader.addEventListener("mousedown", dragStart);
-      document.addEventListener("mousemove", drag);
-      document.addEventListener("mouseup", dragEnd);
-
-      function dragStart(e) {
-        initialX = e.clientX - debugWindow.offsetLeft;
-        initialY = e.clientY - debugWindow.offsetTop;
-        isDragging = true;
-      }
-
-      function drag(e) {
-        if (isDragging) {
-          e.preventDefault();
-          currentX = e.clientX - initialX;
-          currentY = e.clientY - initialY;
-          debugWindow.style.left = currentX + "px";
-          debugWindow.style.top = currentY + "px";
-        }
-      }
-
-      function dragEnd() {
-        isDragging = false;
-      }
-
-      // Skip to time function
-      function skipToTime(seconds) {
-        // Access the global audioElement from script.js
-        if (window.audioElement) {
-          window.audioElement.currentTime = seconds;
-        }
-      }
-
-      // Update time display
-      setInterval(() => {
-        // Access the global audioElement from script.js
-        if (window.audioElement) {
-          const minutes = Math.floor(window.audioElement.currentTime / 60);
-          const seconds = Math.floor(window.audioElement.currentTime % 60);
-          document.getElementById(
-            "time-display"
-          ).textContent = `Time: ${minutes}:${seconds
-            .toString()
-            .padStart(2, "0")}`;
-        }
-      }, 100);
-
-      // Hue rotate slider control
-      const hueSlider = document.getElementById("hue-slider");
-      const hueValue = document.getElementById("hue-value");
-      const htmlElement = document.documentElement;
-
-      hueSlider.addEventListener("input", function () {
-        const hueRotate = this.value;
-        hueValue.textContent = hueRotate;
-        htmlElement.style.filter = `hue-rotate(${hueRotate}deg)`;
-      });
-
-      // Debug log to screen
-      function debugLog(msg) {
-        const debugLogEl = document.getElementById("debug-log");
-        if (debugLogEl) {
-          const timestamp = new Date().toLocaleTimeString();
-          debugLogEl.innerHTML =
-            `[${timestamp}] ${msg}<br>` + debugLogEl.innerHTML;
-        }
-        console.log(msg);
-      }
-
-      // Enable device motion function (for iOS 13+)
-      window.enableDeviceMotion = async function () {
-        const btn = document.getElementById("enable-motion-btn");
-        debugLog("enableDeviceMotion called");
-        debugLog("DeviceOrientationEvent: " + typeof DeviceOrientationEvent);
-        debugLog(
-          "requestPermission: " +
-            typeof DeviceOrientationEvent?.requestPermission
-        );
-        debugLog("Protocol: " + window.location.protocol);
-        debugLog("Hostname: " + window.location.hostname);
-
-        try {
-          if (
-            typeof DeviceOrientationEvent !== "undefined" &&
-            typeof DeviceOrientationEvent.requestPermission === "function"
-          ) {
-            // iOS 13+ requires permission
-            debugLog("Requesting iOS device orientation permission...");
-            const permission = await DeviceOrientationEvent.requestPermission();
-            debugLog("Permission result: " + permission);
-
-            if (permission === "granted") {
-              btn.textContent = "Motion Enabled ✓";
-              btn.style.backgroundColor = "#4CAF50";
-              debugLog("Device motion permission granted");
-              window.deviceMotionEnabled = true;
-            } else {
-              btn.textContent = "Permission: " + permission;
-              btn.style.backgroundColor = "#f44336";
-              debugLog("Device motion permission result: " + permission);
-            }
-          } else {
-            // Android or older iOS - no permission needed
-            btn.textContent = "Motion Active ✓";
-            btn.style.backgroundColor = "#4CAF50";
-            debugLog("Device motion available (no permission needed)");
-            window.deviceMotionEnabled = true;
-          }
-        } catch (error) {
-          debugLog("ERROR: " + error.message);
-          debugLog("Error name: " + error.name);
-          btn.textContent = "Error: " + error.message;
-          btn.style.backgroundColor = "#f44336";
-        }
-      };
-    </script>
+    <!-- Debug window controls -->
+    <script src="dist/debug.js"></script>
 
     <!-- Background layers -->
     <canvas id="stars-canvas"></canvas>
@@ -247,11 +97,29 @@
     </div>
 
     <!-- Top image (desktop) -->
-    <img id="bottom-image" src="bottom-crop-removebg-preview.png" alt="" />
+    <img
+      id="bottom-image"
+      src="bottom-crop-removebg-preview.png"
+      alt=""
+      loading="lazy"
+      decoding="async"
+    />
 
     <!-- Mobile images -->
-    <img id="mobile-left-image" src="sorsari.png" alt="" />
-    <img id="mobile-right-image" src="breaking.png" alt="" />
+    <img
+      id="mobile-left-image"
+      src="sorsari.png"
+      alt=""
+      loading="lazy"
+      decoding="async"
+    />
+    <img
+      id="mobile-right-image"
+      src="breaking.png"
+      alt=""
+      loading="lazy"
+      decoding="async"
+    />
 
     <!-- Text overlay -->
     <div id="sorsari-text">
@@ -273,24 +141,14 @@
       field-of-view="30deg"
       disable-tap
       interaction-prompt="none"
-      style="
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 555px;
-        height: 555px;
-        pointer-events: none;
-        z-index: 10;
-        opacity: 0;
-      "
+      loading="lazy"
     ></model-viewer>
 
-    <!-- Final image (fades in at 3:35) -->
+    <!-- Final image (fades in at 3:35) - deferred loading since not visible until 3:33 -->
     <div id="final-image-container">
       <img
         id="final-image"
-        src="SOSARI-BTS-FINAL-V4.JPG"
+        data-src="SOSARI-BTS-FINAL-V4.JPG"
         alt="Sorsari - Breaking The Surface (Album Art)"
         data-tilt
         data-tilt-max="15"
@@ -318,717 +176,116 @@
       disable-zoom
       disable-tap
       interaction-prompt="none"
+      loading="lazy"
     ></model-viewer>
 
-    <script>
-      // Custom camera animation for center model-viewer
-      const modelViewer = document.querySelector("#model-viewer");
-      let time = 0;
-
-      // 360 spin variables
-      const spinTimes = [30.89, 127.03]; // Spin moments at 30.89s and 2:07.03 (127.03s)
-      const spinDuration = 1.0; // Duration of spin in seconds
-      const blendDuration = 0.5; // Duration to blend from locked to oscillating after spin
-      let currentSpinIndex = -1;
-      let lastSpinEndYaw = 0; // Track where the last spin ended
-      let lastSpinEndPitch = 75; // Track where the last spin ended
-      let lastSpinEndTime = 0; // When the last spin ended
-
-      function animateModelCamera() {
-        time += 0.016; // ~60fps
-
-        const currentTime = window.musicTime || 0;
-
-        let yaw, pitch, distance;
-
-        // Calculate oscillation based on time since last spin
-        const timeSinceLastSpin = time - lastSpinEndTime;
-        const oscillationYaw = Math.sin(timeSinceLastSpin * 0.3) * 20;
-        const oscillationPitch = 75 + Math.sin(timeSinceLastSpin * 0.2) * 15;
-        const oscillationDistance =
-          105 + Math.sin(timeSinceLastSpin * 0.25) * 20;
-
-        // Determine current state
-        let currentState = "normal";
-        let activeSpinTime = 0;
-
-        for (let i = 0; i < spinTimes.length; i++) {
-          const spinStart = spinTimes[i];
-          const spinEnd = spinStart + spinDuration;
-          const blendEnd = spinEnd + blendDuration;
-
-          if (currentTime >= spinStart && currentTime < spinEnd) {
-            currentState = "spinning";
-            activeSpinTime = spinStart;
-            if (currentSpinIndex !== i) {
-              currentSpinIndex = i;
-              modelViewer.removeAttribute("min-camera-orbit");
-              modelViewer.removeAttribute("max-camera-orbit");
-            }
-            break;
-          } else if (currentTime >= spinEnd && currentTime < blendEnd) {
-            currentState = "blending";
-            activeSpinTime = spinStart;
-            break;
-          }
-        }
-
-        if (currentState === "spinning") {
-          // Calculate current oscillation position at the START of the spin
-          const currentOscillationYaw = lastSpinEndYaw + oscillationYaw;
-          const currentOscillationPitch = oscillationPitch;
-
-          // Calculate spin progress (0 to 1)
-          const spinProgress = (currentTime - activeSpinTime) / spinDuration;
-          const easedProgress = 1 - Math.pow(1 - spinProgress, 3); // Ease-out cubic
-
-          // Spin 360° from current oscillation position
-          yaw = currentOscillationYaw + easedProgress * 360;
-          pitch = currentOscillationPitch;
-          distance = oscillationDistance;
-
-          // At end of spin, update where we ended (back to same visual position)
-          if (spinProgress >= 0.99) {
-            // After 360°, we're back at the same visual angle, so just keep the base
-            lastSpinEndYaw = currentOscillationYaw;
-            lastSpinEndPitch = currentOscillationPitch;
-            lastSpinEndTime = time;
-          }
-        } else if (currentState === "blending") {
-          // Blend from locked to oscillating
-          const blendProgress =
-            (currentTime - (activeSpinTime + spinDuration)) / blendDuration;
-          const blendEase =
-            blendProgress * blendProgress * (3 - 2 * blendProgress); // Smooth step
-
-          // Gradually introduce oscillation amplitude
-          yaw = lastSpinEndYaw + oscillationYaw * blendEase;
-          pitch =
-            lastSpinEndPitch +
-            (oscillationPitch - lastSpinEndPitch) * blendEase;
-          distance = oscillationDistance;
-        } else {
-          // Normal oscillation
-          if (currentSpinIndex !== -1) {
-            // Just exited blend mode - restore constraints
-            currentSpinIndex = -1;
-            modelViewer.setAttribute("min-camera-orbit", "-30deg 60deg auto");
-            modelViewer.setAttribute("max-camera-orbit", "30deg 90deg auto");
-          }
-
-          yaw = lastSpinEndYaw + oscillationYaw;
-          pitch = oscillationPitch;
-          distance = oscillationDistance;
-        }
-
-        modelViewer.cameraOrbit = `${yaw}deg ${pitch}deg ${distance}%`;
-
-        requestAnimationFrame(animateModelCamera);
-      }
-
-      modelViewer.addEventListener("load", () => {
-        animateModelCamera();
-      });
-
-      // Zoom and fade animation for center model viewer
-      const dropTime = 31.5;
-      const fadeInDuration = 2.5;
-      const zoomInStart = 25; // 0:32 - start zooming in
-      const zoomInEnd = 64; // 1:06 - finish zooming in
-      const zoomOutEnd = 94; // 1:35 - breakdown (zoom back out completes)
-      const maxZoomScale = 1.75; // Maximum zoom scale (2x larger)
-      const modelFadeOutStart = 205; // 3:25 - start fading out
-      const modelFadeOutEnd = 215; // 3:35 - finish fading out (10 seconds)
-      const modelFadeOutDuration = modelFadeOutEnd - modelFadeOutStart;
-      const finalZoomOutStart = 195; // 3:15 - start final zoom out
-      const finalZoomOutEnd = 215; // 3:35 - finish final zoom out (20 seconds)
-      const finalZoomOutDuration = finalZoomOutEnd - finalZoomOutStart;
-
-      function animateModelViewerZoom() {
-        const currentTime = window.musicTime || 0;
-
-        // Fade in opacity over first 2.5 seconds
-        let opacity = 1.0;
-        if (currentTime < fadeInDuration) {
-          opacity = currentTime / fadeInDuration;
-        } else if (
-          currentTime >= modelFadeOutStart &&
-          currentTime <= modelFadeOutEnd
-        ) {
-          // Fade out from 3:25 to 3:35 (10 seconds)
-          const fadeProgress =
-            (currentTime - modelFadeOutStart) / modelFadeOutDuration;
-          opacity = 1.0 - fadeProgress; // Fade from 1.0 to 0.0
-        } else if (currentTime > modelFadeOutEnd) {
-          // Keep at 0 opacity after fade completes
-          opacity = 0;
-        }
-        modelViewer.style.opacity = opacity;
-
-        // Base scale animation (0 to 31.5s)
-        let baseScale = 1.0;
-        if (currentTime < dropTime) {
-          // Scale from 0.01 (1%) to 1.0 (100%) over 31.5 seconds
-          const progress = currentTime / dropTime;
-          const easedProgress =
-            progress < 0.5
-              ? 2 * progress * progress
-              : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-          baseScale = 0.01 + (1.0 - 0.01) * easedProgress;
-        }
-
-        // Additional zoom effect (0:32 to 1:35)
-        let zoomMultiplier = 1.0;
-        if (currentTime >= zoomInStart && currentTime < zoomInEnd) {
-          // Zoom in from 1.0 to maxZoomScale (0:32 to 1:06)
-          const zoomProgress =
-            (currentTime - zoomInStart) / (zoomInEnd - zoomInStart);
-          // Ease-in-out cubic for smoother motion
-          const easedZoom =
-            zoomProgress < 0.5
-              ? 4 * zoomProgress * zoomProgress * zoomProgress
-              : 1 - Math.pow(-2 * zoomProgress + 2, 3) / 2;
-          zoomMultiplier = 1.0 + (maxZoomScale - 1.0) * easedZoom;
-        } else if (currentTime >= zoomInEnd && currentTime < zoomOutEnd) {
-          // Zoom back out from maxZoomScale to 1.0 (1:06 to 1:35)
-          const zoomOutProgress =
-            (currentTime - zoomInEnd) / (zoomOutEnd - zoomInEnd);
-          // Ease-in-out cubic for smoother motion
-          const easedZoomOut =
-            zoomOutProgress < 0.5
-              ? 4 * zoomOutProgress * zoomOutProgress * zoomOutProgress
-              : 1 - Math.pow(-2 * zoomOutProgress + 2, 3) / 2;
-          zoomMultiplier = maxZoomScale - (maxZoomScale - 1.0) * easedZoomOut;
-        }
-
-        // Final zoom out effect (3:15 to 3:35) - scale down to 0
-        let finalZoomMultiplier = 1.0;
-        if (
-          currentTime >= finalZoomOutStart &&
-          currentTime <= finalZoomOutEnd
-        ) {
-          // Zoom out from 1.0 to 0.0 (3:15 to 3:35)
-          const finalZoomProgress =
-            (currentTime - finalZoomOutStart) / finalZoomOutDuration;
-          // Ease-in cubic for smooth acceleration
-          const easedFinalZoom =
-            finalZoomProgress * finalZoomProgress * finalZoomProgress;
-          finalZoomMultiplier = 1.0 - easedFinalZoom; // Scale from 1.0 to 0.0
-        } else if (currentTime > finalZoomOutEnd) {
-          finalZoomMultiplier = 0.0; // Stay at 0 after zoom completes
-        }
-
-        const finalScale = baseScale * zoomMultiplier * finalZoomMultiplier;
-        modelViewer.style.transform = `translate(-50%, -50%) scale(${finalScale})`;
-
-        requestAnimationFrame(animateModelViewerZoom);
-      }
-
-      animateModelViewerZoom();
-
-      // Final image fade in animation (starts at 3:33)
-      const finalImage = document.getElementById("final-image");
-      const finalImageContainer = document.getElementById(
-        "final-image-container"
-      );
-      const finalImageFadeStart = 213; // 3:33 (2 seconds sooner)
-      const finalImageFadeDuration = 1.5; // Fade in over 1.5 seconds (fully in 1.5s sooner)
-      let tiltInitialized = false;
-
-      // Click on final image to open Spotify
-      finalImage.addEventListener("click", () => {
-        window.open(
-          "https://open.spotify.com/artist/2t01L1I0juJWbThU5jP06Y",
-          "_blank"
-        );
-      });
-
-      function animateFinalImage() {
-        const currentTime = window.musicTime || 0;
-
-        if (currentTime >= finalImageFadeStart) {
-          const timeSinceFadeStart = currentTime - finalImageFadeStart;
-          if (timeSinceFadeStart < finalImageFadeDuration) {
-            // Fade in from 0 to 1 over 1.5 seconds
-            const fadeProgress = timeSinceFadeStart / finalImageFadeDuration;
-            finalImageContainer.style.opacity = fadeProgress;
-            // Enable pointer events when visible
-            if (fadeProgress > 0.1) {
-              finalImageContainer.style.pointerEvents = "auto";
-              // Initialize tilt effect once image is visible
-              if (!tiltInitialized && typeof VanillaTilt !== "undefined") {
-                VanillaTilt.init(finalImage);
-                tiltInitialized = true;
-              }
-            }
-          } else {
-            // Stay at full opacity
-            finalImageContainer.style.opacity = 1;
-            finalImageContainer.style.pointerEvents = "auto";
-            // Initialize tilt effect if not already done
-            if (!tiltInitialized && typeof VanillaTilt !== "undefined") {
-              VanillaTilt.init(finalImage);
-              tiltInitialized = true;
-            }
-          }
-        }
-
-        requestAnimationFrame(animateFinalImage);
-      }
-
-      animateFinalImage();
-
-      // TERROR model - auto-correct camera position after user interaction
-      const terrorModelViewer = document.querySelector("#terror-model-viewer");
-      const targetTerrorOrbit = { theta: 75, radius: 150 }; // Target position (theta=vertical, radius=distance)
-      let isUserInteracting = false;
-      let resetTimeout;
-      let userHasMoved = false;
-
-      // Double click/tap to open SoundCloud link
-      let lastTapTime = 0;
-      const doubleTapDelay = 300; // 300ms window for double tap
-
-      terrorModelViewer.addEventListener("dblclick", () => {
-        window.open("https://soundcloud.com/terrorhythm", "_blank");
-      });
-
-      // Detect when user starts interacting
-      terrorModelViewer.addEventListener("mousedown", () => {
-        isUserInteracting = true;
-        userHasMoved = false;
-        clearTimeout(resetTimeout);
-      });
-
-      terrorModelViewer.addEventListener("touchstart", () => {
-        isUserInteracting = true;
-        userHasMoved = false;
-        clearTimeout(resetTimeout);
-      });
-
-      // Detect when user stops interacting
-      terrorModelViewer.addEventListener("mouseup", () => {
-        if (isUserInteracting && userHasMoved) {
-          isUserInteracting = false;
-          // After 2 seconds of no interaction, smoothly return to original position
-          resetTimeout = setTimeout(() => {
-            smoothResetCamera();
-          }, 2000);
-        }
-      });
-
-      terrorModelViewer.addEventListener("touchend", (e) => {
-        // Check for double tap
-        const currentTime = new Date().getTime();
-        const tapLength = currentTime - lastTapTime;
-
-        if (tapLength < doubleTapDelay && tapLength > 0) {
-          // Double tap detected - open SoundCloud
-          e.preventDefault();
-          window.open("https://soundcloud.com/terrorhythm", "_blank");
-          lastTapTime = 0; // Reset to prevent triple tap
-          return;
-        }
-        lastTapTime = currentTime;
-
-        // Camera reset logic
-        if (isUserInteracting && userHasMoved) {
-          isUserInteracting = false;
-          // After 2 seconds of no interaction, smoothly return to original position
-          resetTimeout = setTimeout(() => {
-            smoothResetCamera();
-          }, 2000);
-        }
-      });
-
-      // Track if user actually moved the camera
-      terrorModelViewer.addEventListener("camera-change", () => {
-        if (isUserInteracting) {
-          userHasMoved = true;
-        }
-      });
-
-      function smoothResetCamera() {
-        const currentOrbit = terrorModelViewer.getCameraOrbit();
-        const currentTheta = currentOrbit.theta * (180 / Math.PI);
-        const currentPhi = currentOrbit.phi * (180 / Math.PI);
-
-        let step = 0;
-        const steps = 60; // 1 second at 60fps
-
-        function animate() {
-          if (isUserInteracting) return; // Stop if user interacts again
-
-          step++;
-          const progress = step / steps;
-          const easeProgress = 1 - Math.pow(1 - progress, 3); // Ease out cubic
-
-          // Only reset theta (vertical angle), let phi (horizontal) continue auto-rotating
-          const newTheta =
-            currentTheta +
-            (targetTerrorOrbit.theta - currentTheta) * easeProgress;
-
-          // Get current phi from the model (it's auto-rotating)
-          const liveOrbit = terrorModelViewer.getCameraOrbit();
-          const livePhi = liveOrbit.phi * (180 / Math.PI);
-
-          terrorModelViewer.cameraOrbit = `${livePhi}deg ${newTheta}deg ${targetTerrorOrbit.radius}%`;
-
-          if (step < steps) {
-            requestAnimationFrame(animate);
-          }
-        }
-
-        animate();
-      }
-    </script>
-
-    <!-- Text, TERROR model, and images fade-in animation -->
-    <script>
-      // Fade in text elements, TERROR model, and images over 20 seconds
-      const textFadeInDuration = 20.0;
-      const sorsariText = document.getElementById("sorsari-text");
-      const trackTitle = document.getElementById("track-title");
-      const terrorModel = document.getElementById("terror-model-viewer");
-      const bottomImage = document.getElementById("bottom-image");
-      const mobileLeftImage = document.getElementById("mobile-left-image");
-      const mobileRightImage = document.getElementById("mobile-right-image");
-
-      // Track title fade out timing (from model viewer script)
-      const trackTitleFadeOutStart = 205; // 3:25
-      const trackTitleFadeOutEnd = 215; // 3:35
-      const trackTitleFadeOutDuration =
-        trackTitleFadeOutEnd - trackTitleFadeOutStart;
-
-      function animateTextFadeIn() {
-        const currentTime = window.musicTime || 0;
-
-        if (currentTime < textFadeInDuration) {
-          const opacity = currentTime / textFadeInDuration;
-          sorsariText.style.opacity = opacity;
-          trackTitle.style.opacity = opacity * 0.7; // Track title max opacity is 0.7
-          terrorModel.style.opacity = opacity;
-          bottomImage.style.opacity = opacity;
-          mobileLeftImage.style.opacity = opacity;
-          mobileRightImage.style.opacity = opacity;
-        } else {
-          sorsariText.style.opacity = 1;
-
-          // Track title: fade out from 3:25 to 3:35
-          let trackTitleOpacity = 0.7;
-          if (
-            currentTime >= trackTitleFadeOutStart &&
-            currentTime <= trackTitleFadeOutEnd
-          ) {
-            const fadeProgress =
-              (currentTime - trackTitleFadeOutStart) /
-              trackTitleFadeOutDuration;
-            trackTitleOpacity = 0.7 * (1.0 - fadeProgress); // Fade from 0.7 to 0.0
-          } else if (currentTime > trackTitleFadeOutEnd) {
-            trackTitleOpacity = 0;
-          }
-          trackTitle.style.opacity = trackTitleOpacity;
-
-          terrorModel.style.opacity = 1;
-          bottomImage.style.opacity = 1;
-          mobileLeftImage.style.opacity = 1;
-          mobileRightImage.style.opacity = 1;
-        }
-
-        requestAnimationFrame(animateTextFadeIn);
-      }
-
-      animateTextFadeIn();
-    </script>
+    <!-- Model viewer animations and text fade-in -->
+    <script src="dist/model-animations.js"></script>
 
     <!-- Parallax stars background -->
-    <script>
-      // Parallax stars background
-      const starsCanvas = document.getElementById("stars-canvas");
-      const starsCtx = starsCanvas.getContext("2d");
+    <script src="dist/stars.js"></script>
 
-      // Set initial canvas size
-      starsCanvas.width = window.innerWidth;
-      starsCanvas.height = window.innerHeight;
-
-      // Create star layers with different speeds for parallax
-      const starLayers = [
-        { stars: [], count: 50, speed: 0.0125, size: 0.5, opacity: 0.3 }, // Far layer
-        { stars: [], count: 35, speed: 0.0215, size: 0.75, opacity: 0.5 }, // Mid layer
-        { stars: [], count: 20, speed: 0.0313, size: 1, opacity: 0.8 }, // Close layer
-      ];
-
-      // Drop timing
-      const firstDropTime = 31.85; // First drop at 31.5 seconds
-      const breakdownTime = 95.8; // Breakdown at 1:35 (95 seconds)
-      const secondDropTime = 127.78; // Second drop at 2:06.5 (126.5 seconds)
-      const fadeOutStartTime = 123; // 2:03 - when fade out begins
-      const fadeOutEndTime = 127; // 2:07 - when fade out completes (fully transparent)
-      const secondDropSnapTime = 128.04; // 2:08:04 - when opacity snaps back to full
-      const dropSpeedMultiplier = 150; // How much faster stars move during drops - HYPERSPEED!
-      const decelerationDuration = 2.0; // Duration to slow down from hyperspeed to normal (2 seconds)
-      const fadeOutDuration = fadeOutEndTime - fadeOutStartTime; // 4 seconds (2:03 to 2:07)
-
-      // Final blur and fade out (after final image is fully in)
-      const finalBlurFadeStart = 214.5; // 3:34.5 - when final image is fully in (213 + 1.5)
-      const finalBlurFadeDuration = 15; // Blur and fade out over 15 seconds
-      const finalBlurFadeEnd = finalBlurFadeStart + finalBlurFadeDuration; // 3:49.5
-
-      // Device motion tilt offset
-      let tiltOffsetX = 0;
-      let tiltOffsetY = 0;
-      const tiltSensitivity = 5.0; // Increased sensitivity for more visible effect
-      const tiltDisplay = document.getElementById("tilt-display");
-      let motionEventCount = 0;
-
-      // Listen for device motion (gyroscope)
-      if (window.DeviceOrientationEvent) {
-        console.log("DeviceOrientationEvent is supported");
-
-        window.addEventListener("deviceorientation", function (event) {
-          motionEventCount++;
-
-          // event.gamma is left/right tilt (-90 to 90)
-          // event.beta is front/back tilt (-180 to 180)
-          const gamma = event.gamma || 0; // Left/right tilt
-          const beta = event.beta || 0; // Front/back tilt
-
-          // Log first event to confirm it's working
-          if (motionEventCount === 1) {
-            console.log("First device orientation event received:", {
-              gamma,
-              beta,
-            });
-          }
-
-          // Map tilt to offset (-90 to 90 degrees -> offset in pixels)
-          // Clamp to reasonable range
-          tiltOffsetX = Math.max(-100, Math.min(100, gamma * tiltSensitivity));
-          tiltOffsetY = Math.max(
-            -100,
-            Math.min(100, (beta - 90) * tiltSensitivity)
-          ); // Subtract 90 to center at portrait orientation
-
-          // Update debug display (throttled to every 5 events for more responsive feedback)
-          if (motionEventCount % 5 === 0 && tiltDisplay) {
-            tiltDisplay.textContent = `Tilt: X=${tiltOffsetX.toFixed(
-              1
-            )}, Y=${tiltOffsetY.toFixed(1)} | γ=${gamma.toFixed(
-              1
-            )}° β=${beta.toFixed(1)}°`;
-          }
-        });
-        console.log("Device orientation listener added");
-
-        // Auto-enable on Android (no permission needed)
-        if (typeof DeviceOrientationEvent.requestPermission !== "function") {
-          const btn = document.getElementById("enable-motion-btn");
-          if (btn) {
-            btn.textContent = "Motion Active ✓";
-            btn.style.backgroundColor = "#4CAF50";
-          }
-          console.log("Device motion auto-enabled (Android)");
-        }
-      } else {
-        console.log("DeviceOrientationEvent NOT supported");
-        if (tiltDisplay) {
-          tiltDisplay.textContent = "Device motion not supported";
-        }
-      }
-
-      // Initialize stars
-      starLayers.forEach((layer) => {
-        for (let i = 0; i < layer.count; i++) {
-          layer.stars.push({
-            x: Math.random() * starsCanvas.width,
-            y: Math.random() * starsCanvas.height,
-            baseVx: (Math.random() - 0.5) * layer.speed,
-            baseVy: (Math.random() - 0.5) * layer.speed,
-            vx: (Math.random() - 0.5) * layer.speed,
-            vy: (Math.random() - 0.5) * layer.speed,
-            pulseAmount: 0, // Current pulse brightness (0-1)
-            pulseDecay: 0.05 + Math.random() * 0.05, // How fast pulse fades (randomized)
-          });
-        }
-      });
-
-      // Handle window resize
-      window.addEventListener("resize", function () {
-        const oldWidth = starsCanvas.width;
-        const oldHeight = starsCanvas.height;
-        starsCanvas.width = window.innerWidth;
-        starsCanvas.height = window.innerHeight;
-
-        // Scale existing star positions proportionally
-        const scaleX = starsCanvas.width / oldWidth;
-        const scaleY = starsCanvas.height / oldHeight;
-
-        starLayers.forEach((layer) => {
-          layer.stars.forEach((star) => {
-            star.x *= scaleX;
-            star.y *= scaleY;
-          });
-        });
-      });
-
-      // Animate stars
-      function animateStars() {
-        // Get current music time
-        const currentTime = window.musicTime || 0;
-        const isDropActive =
-          (currentTime >= firstDropTime && currentTime < breakdownTime) ||
-          currentTime >= secondDropTime;
-
-        // Handle opacity fade out before second drop and snap back at 2:08:04
-        let canvasOpacity = 1.0;
-
-        if (currentTime >= fadeOutStartTime && currentTime < fadeOutEndTime) {
-          // Fade out from 1.0 to 0.0 from 2:03 to 2:07 (4 seconds)
-          const fadeProgress =
-            (currentTime - fadeOutStartTime) / fadeOutDuration;
-          canvasOpacity = 1.0 - fadeProgress;
-        } else if (
-          currentTime >= fadeOutEndTime &&
-          currentTime < secondDropSnapTime
-        ) {
-          // Stay at 0 opacity from 2:07 to 2:08:04
-          canvasOpacity = 0.0;
-        } else if (currentTime >= secondDropSnapTime) {
-          // Snap back to full opacity at 2:08:04
-          canvasOpacity = 1.0;
-        }
-
-        // Final blur and fade out (after final image is fully in)
-        let blurAmount = 0;
-        if (
-          currentTime >= finalBlurFadeStart &&
-          currentTime <= finalBlurFadeEnd
-        ) {
-          const fadeProgress =
-            (currentTime - finalBlurFadeStart) / finalBlurFadeDuration;
-          // Fade out opacity
-          canvasOpacity = 1.0 - fadeProgress;
-          // Increase blur
-          blurAmount = fadeProgress * 20; // Blur up to 20px
-        } else if (currentTime > finalBlurFadeEnd) {
-          // Stay at 0 opacity and max blur after fade completes
-          canvasOpacity = 0;
-          blurAmount = 20;
-        }
-
-        starsCanvas.style.opacity = canvasOpacity;
-        starsCanvas.style.filter =
-          blurAmount > 0 ? `blur(${blurAmount}px)` : "none";
-
-        // Create trail effect during drops by not fully clearing canvas
-        if (isDropActive) {
-          // Fade previous frame instead of clearing (creates motion blur trail)
-          starsCtx.fillStyle = "rgba(1, 3, 19, 0.15)"; // Match background color with low alpha
-          starsCtx.fillRect(0, 0, starsCanvas.width, starsCanvas.height);
-        } else {
-          // Normal clear when not in drop
-          starsCtx.clearRect(0, 0, starsCanvas.width, starsCanvas.height);
-        }
-
-        // Get instruments level for star pulsing
-        const instrumentsLevel = window.getInstrumentsLevel
-          ? window.getInstrumentsLevel()
-          : 0;
-        const pulseThreshold = 0.25; // Threshold for triggering star pulse (lower = more sensitive)
-
-        starLayers.forEach((layer) => {
-          layer.stars.forEach((star) => {
-            // Determine star velocity based on music timing
-            if (currentTime >= firstDropTime && currentTime < breakdownTime) {
-              // First drop to breakdown: move UP fast
-              star.vx = star.baseVx;
-              star.vy = -layer.speed * dropSpeedMultiplier;
-            } else if (
-              currentTime >= breakdownTime &&
-              currentTime < breakdownTime + decelerationDuration
-            ) {
-              // Deceleration period: slow down from hyperspeed to normal
-              const decelProgress =
-                (currentTime - breakdownTime) / decelerationDuration;
-              const decelEase =
-                decelProgress * decelProgress * (3 - 2 * decelProgress); // Smooth step
-
-              // Interpolate from hyperspeed upward to normal drift
-              const hyperspeedVy = -layer.speed * dropSpeedMultiplier;
-              star.vx = star.baseVx;
-              star.vy = hyperspeedVy + (star.baseVy - hyperspeedVy) * decelEase;
-            } else if (currentTime >= secondDropTime) {
-              // Second drop onwards: move DOWN fast
-              star.vx = star.baseVx;
-              star.vy = layer.speed * dropSpeedMultiplier;
-            } else {
-              // Normal slow drift
-              star.vx = star.baseVx;
-              star.vy = star.baseVy;
-            }
-
-            // Pulse logic: randomly trigger stars when instruments are active
-            if (instrumentsLevel > pulseThreshold && Math.random() < 0.000375) {
-              // 1.5% chance per frame to pulse when instruments are active
-              star.pulseAmount = 1.0; // Full brightness and size
-            }
-
-            // Fade pulse back down
-            if (star.pulseAmount > 0) {
-              star.pulseAmount = Math.max(
-                0,
-                star.pulseAmount - star.pulseDecay
-              );
-            }
-
-            // Calculate final opacity (base + pulse)
-            const finalOpacity =
-              layer.opacity + star.pulseAmount * (1.0 - layer.opacity);
-
-            // Calculate final size (base + pulse growth)
-            const sizeMultiplier = 1.0 + star.pulseAmount * 2.5; // Grow up to 5x size
-            const finalSize = layer.size * sizeMultiplier;
-
-            // Apply tilt offset based on layer depth (parallax effect)
-            const layerDepth = layer.speed / 0.0313; // Normalize to 0-1 based on speed
-            const drawX = star.x + tiltOffsetX * layerDepth;
-            const drawY = star.y + tiltOffsetY * layerDepth;
-
-            // Draw star with trail during drops
-            if (isDropActive) {
-              // Draw elongated star (line) for motion blur - longer trails for hyperspeed
-              starsCtx.beginPath();
-              starsCtx.moveTo(drawX, drawY);
-              starsCtx.lineTo(drawX - star.vx * 8, drawY - star.vy * 8);
-              starsCtx.strokeStyle = `rgba(255, 255, 255, ${finalOpacity})`;
-              starsCtx.lineWidth = finalSize * 1.5;
-              starsCtx.stroke();
-            } else {
-              // Normal star (circle) with pulse - grows and brightens
-              starsCtx.fillStyle = `rgba(255, 255, 255, ${finalOpacity})`;
-              starsCtx.beginPath();
-              starsCtx.arc(drawX, drawY, finalSize, 0, Math.PI * 2);
-              starsCtx.fill();
-            }
-
-            // Move star
-            star.x += star.vx;
-            star.y += star.vy;
-
-            // Wrap around edges
-            if (star.x < 0) star.x = starsCanvas.width;
-            if (star.x > starsCanvas.width) star.x = 0;
-            if (star.y < 0) star.y = starsCanvas.height;
-            if (star.y > starsCanvas.height) star.y = 0;
-          });
-        });
-
-        requestAnimationFrame(animateStars);
-      }
-
-      animateStars();
-    </script>
-
+    <!-- Main Three.js visualization -->
     <script src="dist/script.js"></script>
+
+    <!-- Easter eggs: type "yedgar" or "lol" to play SFX without stopping main track -->
+    <script>
+      (function () {
+        // Lazy-loaded audio elements (only created when first triggered)
+        const triggers = {
+          yedgar: null,
+          lol: null,
+          cure: null,
+        };
+
+        const audioFiles = {
+          yedgar: "F9Mog.wav",
+          lol: "CDKefkaLaugh.wav",
+          cure: "cure.wav",
+        };
+
+        // Web Audio fallback for WAVs that the <audio> element can't play
+        let sfxAudioCtx;
+        async function playViaWebAudio(url) {
+          try {
+            if (!sfxAudioCtx) {
+              const Ctx = window.AudioContext || window.webkitAudioContext;
+              sfxAudioCtx = new Ctx();
+            }
+            // Ensure context is running
+            if (sfxAudioCtx.state === "suspended") {
+              await sfxAudioCtx.resume();
+            }
+            const resp = await fetch(url, { cache: "force-cache" });
+            const arr = await resp.arrayBuffer();
+            const buffer = await sfxAudioCtx.decodeAudioData(arr);
+            const source = sfxAudioCtx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(sfxAudioCtx.destination);
+            source.start(0);
+            console.log("SFX (WebAudio) triggered:", url);
+          } catch (err) {
+            console.warn("WebAudio SFX error:", url, err && err.message);
+          }
+        }
+
+        let keyBuffer = "";
+
+        // Do not interfere with the main audio; just play concurrently
+        function playSfx(triggerKey, name) {
+          // Lazy load audio element on first trigger
+          if (!triggers[triggerKey]) {
+            triggers[triggerKey] = new Audio(audioFiles[triggerKey]);
+            triggers[triggerKey].preload = "auto";
+            triggers[triggerKey].crossOrigin = "anonymous";
+            triggers[triggerKey].loop = false;
+            console.log("Lazy loaded SFX:", audioFiles[triggerKey]);
+          }
+
+          const audio = triggers[triggerKey];
+          try {
+            audio.currentTime = 0;
+            const p = audio.play();
+            if (p && typeof p.then === "function") {
+              p.catch((err) => {
+                console.warn("SFX play rejected:", name, err && err.message);
+                // If element can't play (e.g., unsupported codec), use WebAudio fallback
+                if (
+                  String(err && err.message)
+                    .toLowerCase()
+                    .includes("supported sources") ||
+                  String(err).includes("NotSupportedError")
+                ) {
+                  playViaWebAudio(name.split("/").pop());
+                }
+              });
+            }
+            console.log("SFX triggered:", name);
+          } catch (_) {
+            console.warn("SFX error:", name);
+            // Fallback
+            playViaWebAudio(name.split("/").pop());
+          }
+        }
+
+        window.addEventListener("keydown", function (e) {
+          // Ignore modifier-only keys
+          if (e.key.length !== 1) return;
+          keyBuffer += e.key.toLowerCase();
+          // Keep buffer reasonably small
+          const maxLen = Math.max("yedgar".length, "lol".length, "cure".length);
+          if (keyBuffer.length > maxLen) {
+            keyBuffer = keyBuffer.slice(-maxLen);
+          }
+          if (keyBuffer.endsWith("yedgar")) {
+            playSfx("yedgar", "yedgar/F9Mog.wav");
+          } else if (keyBuffer.endsWith("lol")) {
+            playSfx("lol", "lol/CDKefkaLaugh.wav");
+          } else if (keyBuffer.endsWith("cure")) {
+            playSfx("cure", "cure/cure.wav");
+          }
+        });
+      })();
+    </script>
   </body>
 </html>
