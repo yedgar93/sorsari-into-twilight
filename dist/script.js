@@ -167,6 +167,20 @@ function initAudio() {
     },
     { once: true }
   );
+
+  // Override the skipToTime function to sync all three audio tracks
+  SORSARI.skipToTime = function (seconds) {
+    if (audioElement) {
+      audioElement.currentTime = seconds;
+    }
+    if (drumsElement) {
+      drumsElement.currentTime = seconds;
+    }
+    if (instrumentsElement) {
+      instrumentsElement.currentTime = seconds;
+    }
+    console.log("Skipped all tracks to:", seconds, "seconds");
+  };
 }
 
 function getAudioData() {

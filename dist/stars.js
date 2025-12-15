@@ -182,6 +182,13 @@
     const pulseThreshold = 0.25;
 
     starLayers.forEach((layer) => {
+      // Pre-calculate layer depth for parallax (same for all stars in layer)
+      const layerDepth = layer.speed / 0.0313;
+
+      // Batch stars by whether they're pulsing or not for more efficient rendering
+      const normalStars = [];
+      const pulsingStars = [];
+
       layer.stars.forEach((star) => {
         // Determine star velocity based on music timing
         if (currentTime >= firstDropTime && currentTime < breakdownTime) {
@@ -215,31 +222,6 @@
           star.pulseAmount = Math.max(0, star.pulseAmount - star.pulseDecay);
         }
 
-        const finalOpacity =
-          layer.opacity + star.pulseAmount * (1.0 - layer.opacity);
-        const sizeMultiplier = 1.0 + star.pulseAmount * 2.5;
-        const finalSize = layer.size * sizeMultiplier;
-
-        // Apply tilt offset based on layer depth (parallax effect)
-        const layerDepth = layer.speed / 0.0313;
-        const drawX = star.x + tiltOffsetX * layerDepth;
-        const drawY = star.y + tiltOffsetY * layerDepth;
-
-        // Draw star with trail during drops
-        if (isDropActive) {
-          starsCtx.beginPath();
-          starsCtx.moveTo(drawX, drawY);
-          starsCtx.lineTo(drawX - star.vx * 8, drawY - star.vy * 8);
-          starsCtx.strokeStyle = `rgba(255, 255, 255, ${finalOpacity})`;
-          starsCtx.lineWidth = finalSize * 1.5;
-          starsCtx.stroke();
-        } else {
-          starsCtx.fillStyle = `rgba(255, 255, 255, ${finalOpacity})`;
-          starsCtx.beginPath();
-          starsCtx.arc(drawX, drawY, finalSize, 0, Math.PI * 2);
-          starsCtx.fill();
-        }
-
         // Move star
         star.x += star.vx;
         star.y += star.vy;
@@ -249,6 +231,63 @@
         if (star.x > starsCanvas.width) star.x = 0;
         if (star.y < 0) star.y = starsCanvas.height;
         if (star.y > starsCanvas.height) star.y = 0;
+
+        // Apply tilt offset based on layer depth (parallax effect)
+        star.drawX = star.x + tiltOffsetX * layerDepth;
+        star.drawY = star.y + tiltOffsetY * layerDepth;
+
+        // Separate pulsing stars from normal stars for batched rendering
+        if (star.pulseAmount > 0) {
+          pulsingStars.push(star);
+        } else {
+          normalStars.push(star);
+        }
+      });
+
+      // Batch render normal (non-pulsing) stars - set style once, draw all
+      if (normalStars.length > 0) {
+        if (isDropActive) {
+          // Draw trails for normal stars
+          starsCtx.strokeStyle = `rgba(255, 255, 255, ${layer.opacity})`;
+          starsCtx.lineWidth = layer.size * 1.5;
+          starsCtx.beginPath();
+          normalStars.forEach((star) => {
+            starsCtx.moveTo(star.drawX, star.drawY);
+            starsCtx.lineTo(star.drawX - star.vx * 8, star.drawY - star.vy * 8);
+          });
+          starsCtx.stroke();
+        } else {
+          // Draw dots for normal stars
+          starsCtx.fillStyle = `rgba(255, 255, 255, ${layer.opacity})`;
+          starsCtx.beginPath();
+          normalStars.forEach((star) => {
+            starsCtx.moveTo(star.drawX + layer.size, star.drawY);
+            starsCtx.arc(star.drawX, star.drawY, layer.size, 0, Math.PI * 2);
+          });
+          starsCtx.fill();
+        }
+      }
+
+      // Render pulsing stars individually (they have different opacity/size)
+      pulsingStars.forEach((star) => {
+        const finalOpacity =
+          layer.opacity + star.pulseAmount * (1.0 - layer.opacity);
+        const sizeMultiplier = 1.0 + star.pulseAmount * 2.5;
+        const finalSize = layer.size * sizeMultiplier;
+
+        if (isDropActive) {
+          starsCtx.strokeStyle = `rgba(255, 255, 255, ${finalOpacity})`;
+          starsCtx.lineWidth = finalSize * 1.5;
+          starsCtx.beginPath();
+          starsCtx.moveTo(star.drawX, star.drawY);
+          starsCtx.lineTo(star.drawX - star.vx * 8, star.drawY - star.vy * 8);
+          starsCtx.stroke();
+        } else {
+          starsCtx.fillStyle = `rgba(255, 255, 255, ${finalOpacity})`;
+          starsCtx.beginPath();
+          starsCtx.arc(star.drawX, star.drawY, finalSize, 0, Math.PI * 2);
+          starsCtx.fill();
+        }
       });
     });
 

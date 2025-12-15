@@ -76,11 +76,19 @@
   }
 
   // Skip to time function (exposed via SORSARI namespace)
+  // Note: This will be overridden by script.js with the full version that syncs all tracks
   window.SORSARI = window.SORSARI || {};
   SORSARI.skipToTime = function (seconds) {
-    // Access the audioElement from SORSARI namespace
+    // Fallback implementation - will be replaced by script.js
     if (SORSARI.audioElement) {
       SORSARI.audioElement.currentTime = seconds;
+      console.log(
+        "Skipped to:",
+        seconds,
+        "seconds (fallback - single track only)"
+      );
+    } else {
+      console.warn("Audio element not ready yet");
     }
   };
 
