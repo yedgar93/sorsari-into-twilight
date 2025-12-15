@@ -80,8 +80,8 @@
         return;
       }
       lastFrameTime = now;
-      const fadeOutStart = 0;
-      const fadeOutDuration = 24;
+      const fadeOutStart = 6;
+      const fadeOutDuration = 24.95;
       const fadeOutEnd = fadeOutStart + fadeOutDuration;
 
       // Debug log every 60 frames
