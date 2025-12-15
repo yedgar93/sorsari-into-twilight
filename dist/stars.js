@@ -136,6 +136,7 @@
   // Process kill flags
   let starPulsingKilled = false;
   let audioAnalysisKilled = false;
+  let starsAnimationKilled = false;
 
   // Device motion tilt offset
   let tiltOffsetX = 0;
@@ -933,6 +934,13 @@
 
     // Reset filter after all layers are drawn
     starsCtx.filter = "none";
+
+    // Kill stars animation after final fade out (3:35) to save performance
+    if (currentTime >= finalBlurFadeEnd && !starsAnimationKilled) {
+      starsAnimationKilled = true;
+      // Stop requesting animation frames - stars are fully faded out
+      return;
+    }
 
     // FPS scaling - skip frames based on CONFIG.fpsScale from script.js
     const fpsScale = window.CONFIG?.fpsScale || 1.0;

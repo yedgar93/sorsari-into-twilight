@@ -27,6 +27,10 @@
   let width, height, halfHeight;
   let lineWidth = isMobile ? 1 : 2;
 
+  // Bitmap caching for performance
+  let cachedBitmap = null;
+  let lastCachedOpacity = 0;
+
   function resizeCanvas() {
     width = window.innerWidth;
     height = window.innerHeight;
@@ -108,9 +112,10 @@
         opacity = 0;
       }
 
-      // Skip drawing if invisible
+      // Skip drawing if invisible - clear and cache
       if (opacity <= 0) {
         visualizerCtx.clearRect(0, 0, width, height);
+        cachedBitmap = null; // Clear cache when invisible
         return;
       }
 
@@ -178,6 +183,15 @@
         }
 
         visualizerCtx.stroke();
+
+        // Cache bitmap if opacity changed (for faster redraws)
+        if (opacity !== lastCachedOpacity) {
+          lastCachedOpacity = opacity;
+          // Use transferToImageBitmap for better performance if available
+          if (visualizerCanvas.convertToBlob) {
+            cachedBitmap = visualizerCanvas.transferToImageBitmap?.();
+          }
+        }
       }
     }
 

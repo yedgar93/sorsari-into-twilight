@@ -461,7 +461,7 @@ function init() {
   // post processing - define early so we can use in update callback
   // Reduce bloom quality on mobile for better performance
   // Higher threshold = only bright parts bloom (only on bass hits)
-  const bloomPass = new THREE.BloomPass(2.0, 25, 4, 256); // Threshold 2.0 = only bloom on peaks, 256 resolution for better performance
+  const bloomPass = new THREE.BloomPass(2.0, 25, 4, 256); // Threshold 2.0 = only bloom on peaks, 256 resolution
 
   // Radial blur shader for atmospheric background effect
   const RadialBlurShader = {
@@ -1432,6 +1432,9 @@ function init() {
         threeRenderingKilled = true;
         // Stop the update callback to save performance
         paused = true;
+        // Disable expensive post-processing passes
+        bloomPass.enabled = false;
+        radialBlurPass.enabled = false;
       }
     }
 
@@ -1659,7 +1662,9 @@ function THREERoot(params) {
     antialias: params.antialias,
     alpha: true, // Enable transparency
   });
-  this.renderer.setPixelRatio(params.pixelRatio);
+  // Half-resolution rendering for pixelated effect (50% of normal resolution)
+  // This reduces pixel count by 75% for massive performance gain
+  this.renderer.setPixelRatio(params.pixelRatio * 0.5);
 
   // container
   this.container =
