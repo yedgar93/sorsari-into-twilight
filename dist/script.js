@@ -675,19 +675,6 @@ function init() {
       const parallaxShift =
         parallaxPeakLevel * parallaxMaxShift * parallaxSensitivity;
 
-      // Debug log every 30 frames
-      if (frameCount % 30 === 0) {
-        console.log(
-          "Parallax (Drums) - audioLevel:",
-          audioLevel.toFixed(3),
-          "peakLevel:",
-          parallaxPeakLevel.toFixed(3),
-          "shift:",
-          parallaxShift.toFixed(2),
-          "px"
-        );
-      }
-
       // Apply to bottom image with randomized offset and direction
       if (bottomImage) {
         const shift =

@@ -31,6 +31,48 @@
     }
   });
 
+  // Seven-tap gesture to toggle debug window
+  let tapTimes = [];
+  const requiredTaps = 7;
+  const tapWindow = 1500; // milliseconds
+
+  function handleTapGesture(e) {
+    // Ignore taps on the debug window itself or interactive elements
+    if (
+      e.target.closest("#debug-window") ||
+      e.target.closest("button") ||
+      e.target.closest("input") ||
+      e.target.closest("model-viewer")
+    ) {
+      return;
+    }
+
+    const now = Date.now();
+    tapTimes.push(now);
+
+    // Remove taps older than the time window
+    tapTimes = tapTimes.filter((time) => now - time < tapWindow);
+
+    // Check if we have enough taps
+    if (tapTimes.length >= requiredTaps) {
+      const debugWindow = document.getElementById("debug-window");
+      debugWindow.classList.toggle("hidden");
+      tapTimes = []; // Reset
+    }
+  }
+
+  document.addEventListener("click", handleTapGesture);
+  document.addEventListener("touchstart", handleTapGesture, { passive: true });
+
+  // Close button handler
+  const closeBtn = document.getElementById("debug-close-btn");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      debugWindow.classList.add("hidden");
+    });
+  }
+
   // Make debug window draggable
   const debugWindow = document.getElementById("debug-window");
   const debugHeader = document.getElementById("debug-header");
@@ -51,21 +93,43 @@
   let initialX;
   let initialY;
 
+  // Mouse events
   debugHeader.addEventListener("mousedown", dragStart);
   document.addEventListener("mousemove", drag);
   document.addEventListener("mouseup", dragEnd);
 
+  // Touch events
+  debugHeader.addEventListener("touchstart", dragStart, { passive: false });
+  document.addEventListener("touchmove", drag, { passive: false });
+  document.addEventListener("touchend", dragEnd);
+
   function dragStart(e) {
-    initialX = e.clientX - debugWindow.offsetLeft;
-    initialY = e.clientY - debugWindow.offsetTop;
+    // Handle both mouse and touch events
+    const clientX = e.type === "touchstart" ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type === "touchstart" ? e.touches[0].clientY : e.clientY;
+    
+    initialX = clientX - debugWindow.offsetLeft;
+    initialY = clientY - debugWindow.offsetTop;
     isDragging = true;
   }
 
   function drag(e) {
     if (isDragging) {
       e.preventDefault();
-      currentX = e.clientX - initialX;
-      currentY = e.clientY - initialY;
+      
+      // Handle both mouse and touch events
+      const clientX = e.type === "touchmove" ? e.touches[0].clientX : e.clientX;
+      const clientY = e.type === "touchmove" ? e.touches[0].clientY : e.clientY;
+      
+      currentX = clientX - initialX;
+      currentY = clientY - initialY;
+      
+      // Constrain to viewport
+      const maxX = window.innerWidth - debugWindow.offsetWidth;
+      const maxY = window.innerHeight - debugWindow.offsetHeight;
+      currentX = Math.max(0, Math.min(currentX, maxX));
+      currentY = Math.max(0, Math.min(currentY, maxY));
+      
       debugWindow.style.left = currentX + "px";
       debugWindow.style.top = currentY + "px";
     }

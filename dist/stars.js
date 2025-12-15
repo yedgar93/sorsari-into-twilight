@@ -88,6 +88,13 @@
   const finalBlurFadeDuration = 15;
   const finalBlurFadeEnd = finalBlurFadeStart + finalBlurFadeDuration;
 
+  // Chromatic aberration settings
+  const chromaticAberrationEnabled = true;
+  const chromaticAberrationStartTime = 64; // Start at 1:04 (first drop area)
+  const chromaticAberrationEndTime = breakdownTime; // End at breakdown (1:35)
+  const chromaticAberrationMaxOffset = 3; // Max pixel offset for color channels
+  const chromaticAberrationIntensity = 0.6; // How much to use the offset (0-1)
+
   // Device motion tilt offset
   let tiltOffsetX = 0;
   let tiltOffsetY = 0;
@@ -97,20 +104,11 @@
 
   // Listen for device motion (gyroscope)
   if (window.DeviceOrientationEvent) {
-    console.log("DeviceOrientationEvent is supported");
-
     window.addEventListener("deviceorientation", function (event) {
       motionEventCount++;
 
       const gamma = event.gamma || 0;
       const beta = event.beta || 0;
-
-      if (motionEventCount === 1) {
-        console.log("First device orientation event received:", {
-          gamma,
-          beta,
-        });
-      }
 
       tiltOffsetX = Math.max(-100, Math.min(100, gamma * tiltSensitivity));
       tiltOffsetY = Math.max(
@@ -126,7 +124,6 @@
         )}° β=${beta.toFixed(1)}°`;
       }
     });
-    console.log("Device orientation listener added");
 
     // Auto-enable on Android (no permission needed)
     if (typeof DeviceOrientationEvent.requestPermission !== "function") {
@@ -135,10 +132,8 @@
         btn.textContent = "Motion Active ✓";
         btn.style.backgroundColor = "#4CAF50";
       }
-      console.log("Device motion auto-enabled (Android)");
     }
   } else {
-    console.log("DeviceOrientationEvent NOT supported");
     if (tiltDisplay) {
       tiltDisplay.textContent = "Device motion not supported";
     }
@@ -240,6 +235,79 @@
     star.baseZ = star.z;
   });
 
+  // Helper function to draw stars with chromatic aberration effect
+  function drawStarWithChromatic(
+    x,
+    y,
+    size,
+    opacity,
+    offsetAmount,
+    isTrail,
+    vx,
+    vy
+  ) {
+    if (!chromaticAberrationEnabled || offsetAmount === 0) {
+      // Draw normally without chromatic aberration
+      if (isTrail) {
+        starsCtx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+        starsCtx.beginPath();
+        starsCtx.moveTo(x, y);
+        starsCtx.lineTo(x - vx * 8, y - vy * 8);
+        starsCtx.stroke();
+      } else {
+        starsCtx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+        starsCtx.beginPath();
+        starsCtx.arc(x, y, size, 0, Math.PI * 2);
+        starsCtx.fill();
+      }
+      return;
+    }
+
+    // Draw with chromatic aberration (3 color channels offset)
+    const offset = offsetAmount;
+
+    if (isTrail) {
+      // Red channel (offset right)
+      starsCtx.strokeStyle = `rgba(255, 0, 0, ${opacity * 0.4})`;
+      starsCtx.beginPath();
+      starsCtx.moveTo(x + offset, y);
+      starsCtx.lineTo(x + offset - vx * 8, y - vy * 8);
+      starsCtx.stroke();
+
+      // Green channel (no offset)
+      starsCtx.strokeStyle = `rgba(0, 255, 0, ${opacity * 0.4})`;
+      starsCtx.beginPath();
+      starsCtx.moveTo(x, y);
+      starsCtx.lineTo(x - vx * 8, y - vy * 8);
+      starsCtx.stroke();
+
+      // Blue channel (offset left)
+      starsCtx.strokeStyle = `rgba(0, 0, 255, ${opacity * 0.4})`;
+      starsCtx.beginPath();
+      starsCtx.moveTo(x - offset, y);
+      starsCtx.lineTo(x - offset - vx * 8, y - vy * 8);
+      starsCtx.stroke();
+    } else {
+      // Red channel (offset right)
+      starsCtx.fillStyle = `rgba(255, 0, 0, ${opacity * 0.4})`;
+      starsCtx.beginPath();
+      starsCtx.arc(x + offset, y, size, 0, Math.PI * 2);
+      starsCtx.fill();
+
+      // Green channel (no offset)
+      starsCtx.fillStyle = `rgba(0, 255, 0, ${opacity * 0.4})`;
+      starsCtx.beginPath();
+      starsCtx.arc(x, y, size, 0, Math.PI * 2);
+      starsCtx.fill();
+
+      // Blue channel (offset left)
+      starsCtx.fillStyle = `rgba(0, 0, 255, ${opacity * 0.4})`;
+      starsCtx.beginPath();
+      starsCtx.arc(x - offset, y, size, 0, Math.PI * 2);
+      starsCtx.fill();
+    }
+  }
+
   // Animate stars
   function animateStars() {
     const currentTime = SORSARI.musicTime || 0;
@@ -313,6 +381,31 @@
       const rotationProgress =
         (currentTime - zoomInStartTime) / (zoomInEndTime - zoomInStartTime);
       rotationDegrees = rotationProgress * 1440; // 4 full rotations (4 x 360 degrees)
+    }
+
+    // Calculate chromatic aberration offset (pulsing effect)
+    let chromaticOffset = 0;
+    if (
+      chromaticAberrationEnabled &&
+      currentTime >= chromaticAberrationStartTime &&
+      currentTime < chromaticAberrationEndTime
+    ) {
+      // Pulsing effect during first drop section (1:04 to 1:35)
+      const chromaticProgress =
+        (currentTime - chromaticAberrationStartTime) /
+        (chromaticAberrationEndTime - chromaticAberrationStartTime);
+      chromaticOffset =
+        Math.sin(chromaticProgress * Math.PI * 4) * // 2 full pulses
+        chromaticAberrationMaxOffset *
+        chromaticAberrationIntensity;
+    } else if (chromaticAberrationEnabled && currentTime >= invertBackTime) {
+      // Rotating effect from 2:40 onwards (with zoom and rotation)
+      const rotationProgress =
+        (currentTime - invertBackTime) / (zoomInEndTime - invertBackTime);
+      chromaticOffset =
+        Math.sin(rotationProgress * Math.PI * 2) *
+        chromaticAberrationMaxOffset *
+        chromaticAberrationIntensity;
     }
 
     // Calculate wrapper blur amount (blur out from 4px to 0px over first 24 seconds)
@@ -460,8 +553,24 @@
 
       // Batch render normal (non-pulsing) stars directly to main canvas
       if (normalStars.length > 0) {
-        if (isDropActive) {
-          // Draw trails for normal stars
+        if (chromaticOffset !== 0) {
+          // Draw with chromatic aberration (individual stars)
+          normalStars.forEach((star) => {
+            const x = Math.floor(star.drawX);
+            const y = Math.floor(star.drawY);
+            drawStarWithChromatic(
+              x,
+              y,
+              layer.size * depthScale,
+              layer.opacity,
+              chromaticOffset,
+              isDropActive,
+              star.vx,
+              star.vy
+            );
+          });
+        } else if (isDropActive) {
+          // Draw trails for normal stars (no chromatic aberration)
           starsCtx.strokeStyle = `rgba(255, 255, 255, ${layer.opacity})`;
           starsCtx.lineWidth = layer.size * depthScale * 1.5;
           starsCtx.beginPath();
@@ -476,7 +585,7 @@
           });
           starsCtx.stroke();
         } else {
-          // Draw dots for normal stars
+          // Draw dots for normal stars (no chromatic aberration)
           starsCtx.fillStyle = `rgba(255, 255, 255, ${layer.opacity})`;
           starsCtx.beginPath();
           normalStars.forEach((star) => {
