@@ -38,6 +38,7 @@ let analyser;
 let dataArray;
 let audioSource;
 let audioElement;
+let limiter; // Soft limiter to prevent clipping
 
 // Drums track for kick detection
 let drumsAnalyser;
@@ -145,6 +146,14 @@ function initAudio() {
     return;
   }
 
+  // Create soft limiter to prevent clipping (-0.1dB threshold)
+  limiter = audioContext.createDynamicsCompressor();
+  limiter.threshold.value = -0.1; // Threshold at -0.1dB
+  limiter.knee.value = 0; // Hard knee for transparent limiting
+  limiter.ratio.value = 20; // High ratio for limiting (not compression)
+  limiter.attack.value = 0.003; // 3ms attack for fast response
+  limiter.release.value = 0.25; // 250ms release for smooth recovery
+
   // Main audio analyser
   analyser = audioContext.createAnalyser();
   analyser.fftSize = isMobile ? 64 : 128;
@@ -175,9 +184,10 @@ function initAudio() {
   SORSARI.audioElement = audioElement;
   SORSARI.analyser = analyser;
 
-  // Connect main audio to analyser and output
+  // Connect main audio through limiter to analyser and output
   audioSource = audioContext.createMediaElementSource(audioElement);
-  audioSource.connect(analyser);
+  audioSource.connect(limiter);
+  limiter.connect(analyser);
   analyser.connect(audioContext.destination);
 
   // Drums track for kick detection
