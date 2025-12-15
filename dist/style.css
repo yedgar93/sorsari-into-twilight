@@ -231,7 +231,7 @@ model-viewer::part(bar) {
   height: 100%;
   z-index: 5;
   pointer-events: none;
-  opacity: 0.8;
+  opacity: 0.7;
 }
 
 /* Top image (desktop only) */
@@ -353,6 +353,13 @@ model-viewer::part(bar) {
   height: auto;
   cursor: pointer;
   transform-style: preserve-3d;
+}
+
+#bottom-image,
+#mobile-left-image,
+#mobile-right-image {
+  z-index: 10;
+  pointer-events: none;
 }
 
 /* Mobile responsive */
