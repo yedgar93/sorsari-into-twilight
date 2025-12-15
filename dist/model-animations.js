@@ -47,6 +47,7 @@
   // CENTER MODEL CAMERA
   // =====================
   const modelViewer = document.querySelector("#model-viewer");
+  const modelViewerWrapper = document.querySelector("#model-viewer-wrapper");
   let time = 0;
 
   // 360 spin variables
@@ -176,6 +177,12 @@
   const finalZoomOutEnd = 215;
   const finalZoomOutDuration = finalZoomOutEnd - finalZoomOutStart;
 
+  // CENTER MODEL BRIGHTNESS
+  // =====================
+  const brightnessStartValue = 0.1; // Start at 0.1 brightness
+  const brightnessEndTime = 0.07; // Reach full brightness by 0.07 seconds
+  const brightnessEndValue = 1.0; // Full brightness
+
   // Throttle zoom animation to 30fps (every other frame)
   let zoomFrameCount = 0;
 
@@ -204,6 +211,16 @@
       opacity = 0;
     }
     modelViewer.style.opacity = opacity;
+
+    // Brightness animation (0.1 to 1.0 over first 0.07 seconds)
+    let brightness = brightnessEndValue;
+    if (currentTime < brightnessEndTime) {
+      const brightnessProgress = currentTime / brightnessEndTime;
+      brightness =
+        brightnessStartValue +
+        (brightnessEndValue - brightnessStartValue) * brightnessProgress;
+    }
+    modelViewerWrapper.style.filter = `brightness(${brightness})`;
 
     // Base scale animation (0 to 31.5s)
     let baseScale = 1.0;
@@ -434,8 +451,8 @@
   const mobileLeftImage = document.getElementById("mobile-left-image");
   const mobileRightImage = document.getElementById("mobile-right-image");
 
-  const trackTitleFadeOutStart = 205;
-  const trackTitleFadeOutEnd = 215;
+  const trackTitleFadeOutStart = 47;
+  const trackTitleFadeOutEnd = 57;
   const trackTitleFadeOutDuration =
     trackTitleFadeOutEnd - trackTitleFadeOutStart;
 

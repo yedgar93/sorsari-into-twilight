@@ -211,21 +211,23 @@
     </div>
 
     <!-- Track title (bottom center) -->
-    <div id="track-title">' Into Twilight '</div>
+    <div id="track-title">Into Twilight</div>
 
     <!-- Center model viewer -->
-    <model-viewer
-      class="center-model-viewer"
-      id="model-viewer"
-      src="base_basic_shaded.glb"
-      camera-orbit="0deg 75deg 105%"
-      min-camera-orbit="-30deg 60deg auto"
-      max-camera-orbit="30deg 90deg auto"
-      field-of-view="30deg"
-      disable-tap
-      interaction-prompt="none"
-      loading="lazy"
-    ></model-viewer>
+    <div id="model-viewer-wrapper">
+      <model-viewer
+        class="center-model-viewer"
+        id="model-viewer"
+        src="base_basic_shaded.glb"
+        camera-orbit="0deg 75deg 105%"
+        min-camera-orbit="-30deg 60deg auto"
+        max-camera-orbit="30deg 90deg auto"
+        field-of-view="30deg"
+        disable-tap
+        interaction-prompt="none"
+        loading="lazy"
+      ></model-viewer>
+    </div>
 
     <!-- Final image (fades in at 3:35) - deferred loading since not visible until 3:33 -->
     <div id="final-image-container">
