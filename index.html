@@ -161,6 +161,13 @@
             >
               Models ✓
             </button>
+            <button
+              id="toggle-visualizer"
+              class="debug-btn"
+              style="flex: 1; min-width: 80px"
+            >
+              Visualizer ✓
+            </button>
           </div>
         </div>
         <div id="time-display">Time: 0:00</div>
@@ -178,6 +185,9 @@
     <div id="three-blur-wrapper">
       <div id="three-container"></div>
     </div>
+
+    <!-- Audio visualizer (behind model, in front of stars) -->
+    <canvas id="visualizer-canvas"></canvas>
 
     <!-- Top image (desktop) -->
     <img
@@ -272,6 +282,9 @@
 
     <!-- Main Three.js visualization -->
     <script src="dist/script.js"></script>
+
+    <!-- Audio visualizer -->
+    <script src="dist/visualizer.js"></script>
 
     <!-- Easter eggs: type "yedgar", "lol", or "cure" to play SFX without stopping main track -->
     <script>

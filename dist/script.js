@@ -158,6 +158,7 @@ function initAudio() {
 
   // Expose via SORSARI namespace for other scripts
   SORSARI.audioElement = audioElement;
+  SORSARI.analyser = analyser;
 
   // Connect main audio to analyser and output
   audioSource = audioContext.createMediaElementSource(audioElement);

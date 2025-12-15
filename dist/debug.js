@@ -176,10 +176,12 @@
     const starsCanvasBtn = document.getElementById("toggle-stars-canvas");
     const threeContainerBtn = document.getElementById("toggle-three-container");
     const modelsBtn = document.getElementById("toggle-models");
+    const visualizerBtn = document.getElementById("toggle-visualizer");
     const starsCanvas = document.getElementById("stars-canvas");
     const threeContainerEl = document.getElementById("three-container");
     const modelViewer = document.getElementById("model-viewer");
     const terrorModelViewer = document.getElementById("terror-model-viewer");
+    const visualizerCanvas = document.getElementById("visualizer-canvas");
 
     console.log("[Debug] starsCanvasBtn:", starsCanvasBtn);
     console.log("[Debug] threeContainerBtn:", threeContainerBtn);
@@ -240,6 +242,26 @@
       });
     } else {
       console.log("[Debug] Could not attach models toggle - missing elements");
+    }
+
+    // Track visualizer visibility state
+    let visualizerVisible = true;
+
+    if (visualizerBtn && visualizerCanvas) {
+      console.log("[Debug] Attaching visualizer toggle");
+      visualizerBtn.addEventListener("click", function () {
+        console.log("[Debug] Visualizer toggle clicked");
+        visualizerVisible = !visualizerVisible;
+        visualizerCanvas.style.display = visualizerVisible ? "block" : "none";
+        visualizerBtn.textContent = visualizerVisible
+          ? "Visualizer ✓"
+          : "Visualizer ✗";
+        visualizerBtn.style.opacity = visualizerVisible ? "1" : "0.5";
+      });
+    } else {
+      console.log(
+        "[Debug] Could not attach visualizer toggle - missing elements"
+      );
     }
   }
 

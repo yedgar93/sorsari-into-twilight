@@ -75,6 +75,7 @@
   const firstDropTime = 31.85;
   const breakdownTime = 95.8;
   const secondDropTime = 127.78;
+  const invertBackTime = 160; // 2:40 - reverse star direction back to up
   const fadeOutStartTime = 123;
   const fadeOutEndTime = 127;
   const secondDropSnapTime = 128.04;
@@ -284,6 +285,36 @@
       zoomScale = zoomStartScale - (zoomStartScale - 1.0) * zoomProgress;
     }
 
+    // Zoom in from 2:40 to end of song
+    const zoomInStartTime = invertBackTime; // 2:40
+    const zoomSlowdownTime = 162; // 2:42 - slow down zoom
+    const zoomInEndTime = 240; // ~4:00 (end of song)
+    if (currentTime >= zoomInStartTime) {
+      let zoomInAmount;
+      if (currentTime < zoomSlowdownTime) {
+        // Fast zoom from 2:40 to 2:42
+        const fastProgress =
+          (currentTime - zoomInStartTime) /
+          (zoomSlowdownTime - zoomInStartTime);
+        zoomInAmount = 1.0 + Math.pow(fastProgress, 0.5) * 4.0;
+      } else {
+        // Slow zoom from 2:42 to end
+        const slowProgress =
+          (currentTime - zoomSlowdownTime) / (zoomInEndTime - zoomSlowdownTime);
+        const zoomAt242 = 1.0 + Math.pow(1.0, 0.5) * 4.0; // ~5x at 2:42
+        zoomInAmount = zoomAt242 + slowProgress * 2.0; // Slow additional zoom
+      }
+      zoomScale = zoomInAmount;
+    }
+
+    // Rotation from 2:40 to end of song
+    let rotationDegrees = 0;
+    if (currentTime >= zoomInStartTime) {
+      const rotationProgress =
+        (currentTime - zoomInStartTime) / (zoomInEndTime - zoomInStartTime);
+      rotationDegrees = rotationProgress * 1440; // 4 full rotations (4 x 360 degrees)
+    }
+
     // Calculate wrapper blur amount (blur out from 4px to 0px over first 24 seconds)
     let wrapperBlurAmount = 0;
     if (currentTime < blurOutEnd) {
@@ -310,13 +341,13 @@
         // In shake phase
         const shakeOffsetX = (Math.random() - 0.5) * shakeIntensityStar;
         const shakeOffsetY = (Math.random() - 0.5) * shakeIntensityStar;
-        starsCanvas.style.transform = `translate(${shakeOffsetX}px, ${shakeOffsetY}px) scale(${zoomScale})`;
+        starsCanvas.style.transform = `translate(${shakeOffsetX}px, ${shakeOffsetY}px) scale(${zoomScale}) rotate(${rotationDegrees}deg)`;
       } else {
         // In delay phase
-        starsCanvas.style.transform = `scale(${zoomScale})`;
+        starsCanvas.style.transform = `scale(${zoomScale}) rotate(${rotationDegrees}deg)`;
       }
     } else {
-      starsCanvas.style.transform = `scale(${zoomScale})`;
+      starsCanvas.style.transform = `scale(${zoomScale}) rotate(${rotationDegrees}deg)`;
     }
 
     // Create trail effect during drops by not fully clearing canvas
@@ -354,8 +385,10 @@
       timingState = "deceleration";
       decelProgress = (currentTime - breakdownTime) / decelerationDuration;
       decelEase = decelProgress * decelProgress * (3 - 2 * decelProgress);
-    } else if (currentTime >= secondDropTime) {
+    } else if (currentTime >= secondDropTime && currentTime < invertBackTime) {
       timingState = "secondDrop";
+    } else if (currentTime >= invertBackTime) {
+      timingState = "firstDrop"; // Back to flowing up like first drop
     }
 
     starLayers.forEach((layer, layerIndex) => {
