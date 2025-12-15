@@ -260,15 +260,15 @@
     let filterValue = `brightness(${brightness})`;
     modelViewerWrapper.style.filter = filterValue;
 
-    if (zoomFrameCount % 30 === 0) {
-      console.log(
-        `[Model Blur] currentTime=${currentTime.toFixed(
-          2
-        )}s, pixelBlurAmount=${pixelBlurAmount.toFixed(2)}px, blurFilter="${
-          modelPixelBlurWrapper?.style.filter || "none"
-        }"`
-      );
-    }
+    // if (zoomFrameCount % 30 === 0) {
+    //   console.log(
+    //     `[Model Blur] currentTime=${currentTime.toFixed(
+    //       2
+    //     )}s, pixelBlurAmount=${pixelBlurAmount.toFixed(2)}px, blurFilter="${
+    //       modelPixelBlurWrapper?.style.filter || "none"
+    //     }"`
+    //   );
+    // }
 
     // Base scale animation (0 to 31.5s)
     let baseScale = 1.0;

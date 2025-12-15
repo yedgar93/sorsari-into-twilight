@@ -84,14 +84,14 @@
       const fadeOutDuration = 24.95;
       const fadeOutEnd = fadeOutStart + fadeOutDuration;
 
-      // Debug log every 60 frames
-      if (frameCount % 60 === 0) {
-        console.log(
-          `SNES stars: elapsedTime=${elapsedTime.toFixed(
-            1
-          )}s, musicTime=${musicTime.toFixed(1)}s, stars.length=${stars.length}`
-        );
-      }
+      // // Debug log every 60 frames
+      // if (frameCount % 60 === 0) {
+      //   console.log(
+      //     `SNES stars: elapsedTime=${elapsedTime.toFixed(
+      //       1
+      //     )}s, musicTime=${musicTime.toFixed(1)}s, stars.length=${stars.length}`
+      //   );
+      // }
 
       let opacity = 1.0;
       if (musicTime < fadeOutStart) {

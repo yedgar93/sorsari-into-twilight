@@ -242,20 +242,20 @@
     }
   }
 
-  console.log = function (...args) {
-    originalLog.apply(console, args);
-    captureLog("LOG", args);
-  };
+  // console.log = function (...args) {
+  //   originalLog.apply(console, args);
+  //   captureLog("LOG", args);
+  // };
 
-  console.warn = function (...args) {
-    originalWarn.apply(console, args);
-    captureLog("WARN", args);
-  };
+  // console.warn = function (...args) {
+  //   originalWarn.apply(console, args);
+  //   captureLog("WARN", args);
+  // };
 
-  console.error = function (...args) {
-    originalError.apply(console, args);
-    captureLog("ERROR", args);
-  };
+  // console.error = function (...args) {
+  //   originalError.apply(console, args);
+  //   captureLog("ERROR", args);
+  // };
 
   // Depth-of-field blur sliders
   // Expose blur values in SORSARI namespace so stars.js can access them

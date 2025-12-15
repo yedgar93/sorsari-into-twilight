@@ -325,6 +325,9 @@ function init() {
     antialias: window.devicePixelRatio === 1,
     fov: 60,
   });
+
+  // Expose root for easter eggs
+  window.root = root;
   root.renderer.setClearColor(0x000000, 0); // Transparent background
   root.camera.position.set(0, 0, 200);
   root.camera.lookAt(15, -25, 0); // Tilted down to avoid bright center
