@@ -24,8 +24,18 @@
   let lastSpinEndPitch = 75; // Track where the last spin ended
   let lastSpinEndTime = 0; // When the last spin ended
 
+  // Throttle camera animation to 30fps (every other frame)
+  let cameraFrameCount = 0;
+
   function animateModelCamera() {
-    time += 0.016; // ~60fps
+    cameraFrameCount++;
+    // Only update every 2 frames (30fps instead of 60fps)
+    if (cameraFrameCount % 2 !== 0) {
+      requestAnimationFrame(animateModelCamera);
+      return;
+    }
+
+    time += 0.032; // ~30fps (0.016 * 2)
 
     const currentTime = SORSARI.musicTime || 0;
 
@@ -132,7 +142,17 @@
   const finalZoomOutEnd = 215;
   const finalZoomOutDuration = finalZoomOutEnd - finalZoomOutStart;
 
+  // Throttle zoom animation to 30fps (every other frame)
+  let zoomFrameCount = 0;
+
   function animateModelViewerZoom() {
+    zoomFrameCount++;
+    // Only update every 2 frames (30fps instead of 60fps)
+    if (zoomFrameCount % 2 !== 0) {
+      requestAnimationFrame(animateModelViewerZoom);
+      return;
+    }
+
     const currentTime = SORSARI.musicTime || 0;
 
     // Fade in opacity over first 2.5 seconds
@@ -266,6 +286,18 @@
   // TERROR MODEL CONTROLS
   // =====================
   const terrorModelViewer = document.querySelector("#terror-model-viewer");
+
+  // Detect mobile and adjust rotation speed
+  const isMobile =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+  if (isMobile) {
+    // On mobile, reduce rotation speed to 15deg/sec (was 45deg/sec)
+    // This reduces GPU load while keeping the model animated
+    terrorModelViewer.setAttribute("rotation-per-second", "15deg");
+  }
+
   const targetTerrorOrbit = { theta: 75, radius: 150 };
   let isUserInteracting = false;
   let resetTimeout;

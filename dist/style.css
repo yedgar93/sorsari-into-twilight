@@ -180,6 +180,8 @@ model-viewer::part(bar) {
 
 #three-container {
   opacity: 0.55;
+  /* Blur for depth-of-field effect - triangles appear in far background */
+  filter: blur(2px);
   /* filter: invert(100%); */
 }
 

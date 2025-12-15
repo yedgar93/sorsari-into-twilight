@@ -115,6 +115,52 @@
     htmlElement.style.filter = `hue-rotate(${hueRotate}deg)`;
   });
 
+  // Depth-of-field blur sliders
+  // Expose blur values in SORSARI namespace so stars.js can access them
+  window.SORSARI = window.SORSARI || {};
+  window.SORSARI.dofBlur = {
+    layer1: 0.0,
+    layer2: 3.0,
+    layer3: 0.0,
+    triangles: 5.0,
+  };
+
+  // Layer 1 blur slider
+  const layer1BlurSlider = document.getElementById("layer1-blur-slider");
+  const layer1BlurValue = document.getElementById("layer1-blur-value");
+  layer1BlurSlider.addEventListener("input", function () {
+    SORSARI.dofBlur.layer1 = parseFloat(this.value);
+    layer1BlurValue.textContent = this.value;
+  });
+
+  // Layer 2 blur slider
+  const layer2BlurSlider = document.getElementById("layer2-blur-slider");
+  const layer2BlurValue = document.getElementById("layer2-blur-value");
+  layer2BlurSlider.addEventListener("input", function () {
+    SORSARI.dofBlur.layer2 = parseFloat(this.value);
+    layer2BlurValue.textContent = this.value;
+  });
+
+  // Layer 3 blur slider
+  const layer3BlurSlider = document.getElementById("layer3-blur-slider");
+  const layer3BlurValue = document.getElementById("layer3-blur-value");
+  layer3BlurSlider.addEventListener("input", function () {
+    SORSARI.dofBlur.layer3 = parseFloat(this.value);
+    layer3BlurValue.textContent = this.value;
+  });
+
+  // Triangles blur slider
+  const trianglesBlurSlider = document.getElementById("triangles-blur-slider");
+  const trianglesBlurValue = document.getElementById("triangles-blur-value");
+  const threeContainer = document.getElementById("three-container");
+  trianglesBlurSlider.addEventListener("input", function () {
+    SORSARI.dofBlur.triangles = parseFloat(this.value);
+    trianglesBlurValue.textContent = this.value;
+    if (threeContainer) {
+      threeContainer.style.filter = `blur(${this.value}px)`;
+    }
+  });
+
   // Debug log to screen (exposed via SORSARI namespace)
   SORSARI.debugLog = function (msg) {
     const debugLogEl = document.getElementById("debug-log");

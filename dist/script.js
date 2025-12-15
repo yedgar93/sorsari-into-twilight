@@ -4,13 +4,12 @@ window.onload = init;
 // SORSARI Namespace
 // Single global object to share state between scripts
 // =====================
-window.SORSARI = {
-  musicTime: 0,
-  audioElement: null,
-  getInstrumentsLevel: function () {
-    return 0;
-  }, // Will be replaced after init
-};
+window.SORSARI = window.SORSARI || {};
+window.SORSARI.musicTime = 0;
+window.SORSARI.audioElement = null;
+window.SORSARI.getInstrumentsLevel = function () {
+  return 0;
+}; // Will be replaced after init
 
 // Detect mobile devices
 const isMobile =
@@ -19,7 +18,7 @@ const isMobile =
   );
 
 const CONFIG = {
-  pointCount: isMobile ? 600 : 4000, // Optimized for mobile - 600 points still looks great but much faster
+  pointCount: isMobile ? 400 : 4000, // Optimized for mobile - 400 points for better performance
   extrudeAmount: 2.0,
   splineStepsX: isMobile ? 2 : 3, // Decent quality on mobile
   splineStepsY: isMobile ? 2 : 3, // Decent quality on mobile
@@ -59,6 +58,7 @@ const kickTimingOffset = 0.0; // Timing offset for kick flash in seconds (positi
 let colorFlashAmount = 0; // Current flash amount (0-1)
 const defaultColor = new THREE.Color(0x362f99); // Default purple/blue
 const kickColor = new THREE.Color(0x766391); // Pink color for kicks
+const cachedInterpolatedColor = new THREE.Color(); // Reusable color for interpolation (avoids allocation every frame)
 
 // Audio timing offset (in seconds) - adjust if visualizer is ahead/behind music
 const audioTimingOffset = 0; // Positive = delay visualizer, Negative = advance visualizer
@@ -267,8 +267,36 @@ function getInstrumentsLevel() {
   return instrumentsLevel;
 }
 
-// Expose instruments level via SORSARI namespace for star animation
-SORSARI.getInstrumentsLevel = getInstrumentsLevel;
+// Expose instruments level via SORSARI namespace for star animation (throttled to 30fps)
+SORSARI.getInstrumentsLevel = getInstrumentsLevelThrottled;
+
+// Audio analysis throttling - run at 30fps instead of 60fps
+let audioAnalysisFrameCount = 0;
+let cachedBassLevel = 0;
+let cachedInstrumentsLevel = 0;
+
+// Throttled versions of audio functions
+function getAudioDataThrottled() {
+  audioAnalysisFrameCount++;
+  // Only analyze every 2 frames (30fps instead of 60fps)
+  if (audioAnalysisFrameCount % 2 === 0) {
+    cachedBassLevel = getAudioData();
+  }
+  return cachedBassLevel;
+}
+
+// Drums bass is NOT throttled - needs to run every frame for kick detection
+function getDrumsBasThrottled() {
+  return getDrumsBass();
+}
+
+function getInstrumentsLevelThrottled() {
+  // Reuse the same frame counter as main audio analysis
+  if (audioAnalysisFrameCount % 2 === 0) {
+    cachedInstrumentsLevel = getInstrumentsLevel();
+  }
+  return cachedInstrumentsLevel;
+}
 
 function init() {
   // Initialize audio
@@ -684,8 +712,8 @@ function init() {
       root.camera.position.z = preDropZoomDistance + cameraZoomOutOffset;
     }
 
-    // Audio reactivity - only use actual bass from audio
-    const bass = getAudioData();
+    // Audio reactivity - only use actual bass from audio (throttled to 30fps)
+    const bass = getAudioDataThrottled();
 
     // Fade in canvas opacity from 13 to 30 seconds
     const fadeInStart = 13.0; // Start fading at 13 seconds
@@ -725,7 +753,7 @@ function init() {
 
     // Kick detection and color flash (using drums track) - throttled to every 2 frames
     if (frameCount % 2 === 0) {
-      const drumsBass = getDrumsBass();
+      const drumsBass = getDrumsBasThrottled();
       if (drumsBass > kickThreshold) {
         // Kick detected - flash to pink
         colorFlashAmount = Math.min(1.0, colorFlashAmount + 0.3);
@@ -734,11 +762,13 @@ function init() {
         colorFlashAmount = Math.max(0.0, colorFlashAmount - 0.05);
       }
 
-      // Interpolate between default color and kick color
-      const currentColor = defaultColor
-        .clone()
+      // Interpolate between default color and kick color (reuse cached color object)
+      cachedInterpolatedColor
+        .copy(defaultColor)
         .lerp(kickColor, colorFlashAmount);
-      animation.material.uniforms["diffuse"].value.copy(currentColor);
+      animation.material.uniforms["diffuse"].value.copy(
+        cachedInterpolatedColor
+      );
     }
 
     // Update bloom intensity - throttled to every 3 frames

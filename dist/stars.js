@@ -16,11 +16,38 @@
   starsCanvas.width = window.innerWidth;
   starsCanvas.height = window.innerHeight;
 
-  // Create star layers with different speeds for parallax
+  // Create star layers with different speeds for parallax and depth-of-field
   const starLayers = [
-    { stars: [], count: 50, speed: 0.0125, size: 0.5, opacity: 0.3 }, // Far layer
-    { stars: [], count: 35, speed: 0.0215, size: 0.75, opacity: 0.5 }, // Mid layer
-    { stars: [], count: 20, speed: 0.0313, size: 1, opacity: 0.8 }, // Close layer
+    {
+      stars: [],
+      count: 50,
+      speed: 0.0125,
+      size: 0.5,
+      opacity: 0.3,
+      depth: 3,
+      blur: 0.0,
+      scale: 0.7,
+    }, // Far layer (sharp)
+    {
+      stars: [],
+      count: 35,
+      speed: 0.0215,
+      size: 0.75,
+      opacity: 0.5,
+      depth: 2,
+      blur: 3.0,
+      scale: 0.85,
+    }, // Mid layer (blurred for depth effect)
+    {
+      stars: [],
+      count: 20,
+      speed: 0.0313,
+      size: 1,
+      opacity: 0.8,
+      depth: 1,
+      blur: 0.0,
+      scale: 1.0,
+    }, // Close layer (sharp)
   ];
 
   // Drop timing
@@ -181,31 +208,57 @@
       : 0;
     const pulseThreshold = 0.25;
 
-    starLayers.forEach((layer) => {
+    // Get dynamic blur values from debug controls (if available)
+    const blurValues = [
+      SORSARI.dofBlur?.layer1 ?? starLayers[0].blur,
+      SORSARI.dofBlur?.layer2 ?? starLayers[1].blur,
+      SORSARI.dofBlur?.layer3 ?? starLayers[2].blur,
+    ];
+
+    // Pre-calculate timing state once per frame (instead of per star)
+    let timingState = "normal";
+    let decelProgress = 0;
+    let decelEase = 0;
+
+    if (currentTime >= firstDropTime && currentTime < breakdownTime) {
+      timingState = "firstDrop";
+    } else if (
+      currentTime >= breakdownTime &&
+      currentTime < breakdownTime + decelerationDuration
+    ) {
+      timingState = "deceleration";
+      decelProgress = (currentTime - breakdownTime) / decelerationDuration;
+      decelEase = decelProgress * decelProgress * (3 - 2 * decelProgress);
+    } else if (currentTime >= secondDropTime) {
+      timingState = "secondDrop";
+    }
+
+    starLayers.forEach((layer, layerIndex) => {
       // Pre-calculate layer depth for parallax (same for all stars in layer)
       const layerDepth = layer.speed / 0.0313;
+
+      // Apply depth-of-field blur filter for this layer
+      const blurAmount = blurValues[layerIndex];
+      if (blurAmount > 0) {
+        starsCtx.filter = `blur(${blurAmount}px)`;
+      } else {
+        starsCtx.filter = "none";
+      }
 
       // Batch stars by whether they're pulsing or not for more efficient rendering
       const normalStars = [];
       const pulsingStars = [];
 
       layer.stars.forEach((star) => {
-        // Determine star velocity based on music timing
-        if (currentTime >= firstDropTime && currentTime < breakdownTime) {
+        // Determine star velocity based on pre-calculated timing state
+        if (timingState === "firstDrop") {
           star.vx = star.baseVx;
           star.vy = -layer.speed * dropSpeedMultiplier;
-        } else if (
-          currentTime >= breakdownTime &&
-          currentTime < breakdownTime + decelerationDuration
-        ) {
-          const decelProgress =
-            (currentTime - breakdownTime) / decelerationDuration;
-          const decelEase =
-            decelProgress * decelProgress * (3 - 2 * decelProgress);
+        } else if (timingState === "deceleration") {
           const hyperspeedVy = -layer.speed * dropSpeedMultiplier;
           star.vx = star.baseVx;
           star.vy = hyperspeedVy + (star.baseVy - hyperspeedVy) * decelEase;
-        } else if (currentTime >= secondDropTime) {
+        } else if (timingState === "secondDrop") {
           star.vx = star.baseVx;
           star.vy = layer.speed * dropSpeedMultiplier;
         } else {
@@ -244,12 +297,15 @@
         }
       });
 
-      // Batch render normal (non-pulsing) stars - set style once, draw all
+      // Apply depth-based size scaling
+      const depthScale = layer.scale;
+
+      // Batch render normal (non-pulsing) stars directly to main canvas
       if (normalStars.length > 0) {
         if (isDropActive) {
           // Draw trails for normal stars
           starsCtx.strokeStyle = `rgba(255, 255, 255, ${layer.opacity})`;
-          starsCtx.lineWidth = layer.size * 1.5;
+          starsCtx.lineWidth = layer.size * depthScale * 1.5;
           starsCtx.beginPath();
           normalStars.forEach((star) => {
             starsCtx.moveTo(star.drawX, star.drawY);
@@ -261,8 +317,14 @@
           starsCtx.fillStyle = `rgba(255, 255, 255, ${layer.opacity})`;
           starsCtx.beginPath();
           normalStars.forEach((star) => {
-            starsCtx.moveTo(star.drawX + layer.size, star.drawY);
-            starsCtx.arc(star.drawX, star.drawY, layer.size, 0, Math.PI * 2);
+            starsCtx.moveTo(star.drawX + layer.size * depthScale, star.drawY);
+            starsCtx.arc(
+              star.drawX,
+              star.drawY,
+              layer.size * depthScale,
+              0,
+              Math.PI * 2
+            );
           });
           starsCtx.fill();
         }
@@ -273,7 +335,7 @@
         const finalOpacity =
           layer.opacity + star.pulseAmount * (1.0 - layer.opacity);
         const sizeMultiplier = 1.0 + star.pulseAmount * 2.5;
-        const finalSize = layer.size * sizeMultiplier;
+        const finalSize = layer.size * depthScale * sizeMultiplier;
 
         if (isDropActive) {
           starsCtx.strokeStyle = `rgba(255, 255, 255, ${finalOpacity})`;
@@ -290,6 +352,9 @@
         }
       });
     });
+
+    // Reset filter after all layers are drawn
+    starsCtx.filter = "none";
 
     requestAnimationFrame(animateStars);
   }
