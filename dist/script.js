@@ -633,6 +633,9 @@ function init() {
   const trianglesDelayStart = 15.5; // Stay at 0.3 brightness until 15.5 seconds
   const trianglesEndTime = 27.4; // Reach full brightness by 27.4 seconds
   const trianglesEndValue = 1.0; // Full brightness
+  const trianglesFadeOutStart = 28.95; // Fade out from 0:28.5
+  const trianglesFadeOutEnd = 30.12; // Fade out complete at 0:29.5
+  const trianglesFadeInTime = 31.96; // Abruptly fade back in at 0:32
 
   // Peak detection for parallax
   let parallaxPeakLevel = 0;
@@ -653,6 +656,16 @@ function init() {
     mobileRightImage: Math.random() > 0.5 ? 1 : -1,
     trackTitle: Math.random() > 0.5 ? 1 : -1,
   };
+
+  // Ghost mirror effect state (random mirroring for 0.5s)
+  const ghostMirrorState = {
+    bottomImage: { active: false, endTime: 0 },
+    mobileLeftImage: { active: false, endTime: 0 },
+    mobileRightImage: { active: false, endTime: 0 },
+    trackTitle: { active: false, endTime: 0 },
+  };
+  const ghostMirrorDuration = 0.5; // seconds
+  const ghostMirrorChance = 0.003; // ~0.3% chance per frame (rare)
 
   root.addUpdateCallback(function () {
     if (paused) return;
@@ -727,6 +740,103 @@ function init() {
           parallaxShift * parallaxDirections.trackTitle +
           parallaxOffsets.trackTitle;
         trackTitle.style.transform = `translateX(-50%) translateY(${shift}px)`;
+      }
+
+      // Apply chromatic aberration to UI elements during drops (opposite to parallax direction)
+      // First drop: 0:31 to 1:36, Second drop: 2:07 to 3:10, Fade out: 3:10 to 3:30
+      const isInDrop =
+        (currentTime >= 31 && currentTime < 96) || // First drop 0:31 to 1:36
+        (currentTime >= 127 && currentTime < 190); // Second drop 2:07 to 3:10
+
+      // Calculate opacity for fade out section (3:10 to 3:30)
+      let glitchOpacity = 1.0;
+      if (currentTime >= 190 && currentTime < 210) {
+        // Fade out from 1.0 to 0 over 20 seconds
+        glitchOpacity = 1.0 - (currentTime - 190) / 20;
+      } else if (currentTime >= 210) {
+        glitchOpacity = 0;
+      }
+
+      if (
+        (isInDrop || (currentTime >= 190 && currentTime < 210)) &&
+        glitchOpacity > 0
+      ) {
+        // Calculate chromatic offset based on parallax shift (MORE INTENSE)
+        const chromaticOffset = parallaxShift * 6 + 2; // Bigger multiplier + base offset
+
+        // Helper function to apply chromatic + optional ghost effects
+        const applyGlitchEffect = (element, key) => {
+          if (!element) return;
+
+          let dir = -parallaxDirections[key]; // Opposite direction
+          const ghost = ghostMirrorState[key];
+
+          // Random chance to trigger ghost effect (only if not already active)
+          if (!ghost.active && Math.random() < ghostMirrorChance) {
+            ghost.active = true;
+            ghost.endTime = currentTime + ghostMirrorDuration;
+            // Randomly choose effect type: 0 = reverse colors, 1 = flip horizontal, 2 = both
+            ghost.effectType = Math.floor(Math.random() * 3);
+          }
+
+          // Check if ghost effect should end
+          if (ghost.active && currentTime >= ghost.endTime) {
+            ghost.active = false;
+          }
+
+          // Apply ghost effects
+          let flipColors = false;
+          let flipHorizontal = false;
+          if (ghost.active) {
+            if (ghost.effectType === 0 || ghost.effectType === 2) {
+              flipColors = true; // Reverse chromatic aberration direction
+            }
+            if (ghost.effectType === 1 || ghost.effectType === 2) {
+              flipHorizontal = true; // Flip aberration horizontally (Y axis offset)
+            }
+          }
+
+          // Reverse direction if flipColors is active
+          if (flipColors) {
+            dir = -dir;
+          }
+
+          // Build filter string - horizontal flip adds Y offset
+          const yOffset = flipHorizontal ? chromaticOffset * 0.5 : 0;
+          const redOpacity = 0.44 * glitchOpacity;
+          const blueOpacity = 0.52 * glitchOpacity;
+          const filter = `drop-shadow(${
+            chromaticOffset * dir
+          }px ${yOffset}px 0px rgba(255, 0, 0, ${redOpacity})) drop-shadow(${
+            -chromaticOffset * dir
+          }px ${-yOffset}px 0px rgba(0, 0, 255, ${blueOpacity}))`;
+
+          element.style.filter = filter;
+        };
+
+        // Apply to each element
+        applyGlitchEffect(bottomImage, "bottomImage");
+        applyGlitchEffect(mobileLeftImage, "mobileLeftImage");
+        applyGlitchEffect(mobileRightImage, "mobileRightImage");
+        applyGlitchEffect(trackTitle, "trackTitle");
+      } else {
+        // Remove chromatic aberration and reset transforms when not in drop
+        if (bottomImage) {
+          bottomImage.style.filter = "";
+          ghostMirrorState.bottomImage.active = false;
+        }
+        if (mobileLeftImage) {
+          mobileLeftImage.style.filter = "";
+          ghostMirrorState.mobileLeftImage.active = false;
+        }
+        if (mobileRightImage) {
+          mobileRightImage.style.filter = "";
+          ghostMirrorState.mobileRightImage.active = false;
+        }
+        if (trackTitle) {
+          trackTitle.style.filter = "";
+          ghostMirrorState.trackTitle.active = false;
+        }
       }
     }
 
@@ -1109,14 +1219,39 @@ function init() {
 
     // Triangles canvas brightness animation (stay at 0.3 until 31.5s, then fade to 1.0 by 32.4s)
     let trianglesBrightness = trianglesStartValue;
-    if (currentTime >= trianglesDelayStart && currentTime < trianglesEndTime) {
+    let trianglesOpacity = 1.0;
+
+    // Fade out from 0:28.5 to 0:29.5
+    if (
+      currentTime >= trianglesFadeOutStart &&
+      currentTime < trianglesFadeOutEnd
+    ) {
+      const fadeOutProgress =
+        (currentTime - trianglesFadeOutStart) /
+        (trianglesFadeOutEnd - trianglesFadeOutStart);
+      trianglesBrightness = trianglesEndValue * (1 - fadeOutProgress); // Fade from 1.0 to 0.0
+      trianglesOpacity = 1 - fadeOutProgress; // Fade opacity from 1.0 to 0.0
+    }
+    // Abruptly fade back in at 0:32
+    else if (currentTime >= trianglesFadeInTime) {
+      trianglesBrightness = trianglesEndValue; // Jump back to 1.0
+      trianglesOpacity = 1.0; // Jump back to full opacity
+    }
+    // Normal brightness animation (0:15.5 to 0:27.4)
+    else if (
+      currentTime >= trianglesDelayStart &&
+      currentTime < trianglesEndTime
+    ) {
       const trianglesProgress =
         (currentTime - trianglesDelayStart) /
         (trianglesEndTime - trianglesDelayStart);
       trianglesBrightness =
         trianglesStartValue +
         (trianglesEndValue - trianglesStartValue) * trianglesProgress;
-    } else if (currentTime >= trianglesEndTime) {
+    } else if (
+      currentTime >= trianglesEndTime &&
+      currentTime < trianglesFadeOutStart
+    ) {
       trianglesBrightness = trianglesEndValue;
     }
 
@@ -1133,20 +1268,37 @@ function init() {
       threeContainer.style.filter = filterValue;
     }
 
-    // Fade out triangle canvas from 3:05 to 3:35 (185s to 215s)
-    if (
-      currentTime >= triangleFadeOutStart &&
-      currentTime <= triangleFadeOutEnd
-    ) {
-      const fadeProgress =
-        (currentTime - triangleFadeOutStart) / triangleFadeOutDuration;
-      const opacity = 1.0 - fadeProgress; // Fade from 1.0 to 0.0
-      if (threeContainer) {
-        threeContainer.style.opacity = opacity;
+    // Handle all opacity changes (early fade takes priority)
+    if (threeContainer) {
+      // Early fade out from 0:28.5 to 0:29.5 (takes priority)
+      if (
+        currentTime >= trianglesFadeOutStart &&
+        currentTime < trianglesFadeOutEnd
+      ) {
+        threeContainer.style.opacity = trianglesOpacity;
       }
-    } else if (currentTime > triangleFadeOutEnd) {
-      // Keep at 0 opacity after fade completes
-      if (threeContainer) {
+      // Keep invisible from 0:29.5 to 0:32
+      else if (
+        currentTime >= trianglesFadeOutEnd &&
+        currentTime < trianglesFadeInTime
+      ) {
+        threeContainer.style.opacity = 0;
+      }
+      // Abruptly fade back in at 0:32
+      else if (currentTime >= trianglesFadeInTime) {
+        threeContainer.style.opacity = 1.0;
+      }
+      // Later fade out from 3:05 to 3:35 (185s to 215s)
+      else if (
+        currentTime >= triangleFadeOutStart &&
+        currentTime <= triangleFadeOutEnd
+      ) {
+        const fadeProgress =
+          (currentTime - triangleFadeOutStart) / triangleFadeOutDuration;
+        const opacity = 1.0 - fadeProgress; // Fade from 1.0 to 0.0
+        threeContainer.style.opacity = opacity;
+      } else if (currentTime > triangleFadeOutEnd) {
+        // Keep at 0 opacity after fade completes
         threeContainer.style.opacity = 0;
       }
     }

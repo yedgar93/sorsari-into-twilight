@@ -18,6 +18,31 @@
   starsCanvas.width = window.innerWidth;
   starsCanvas.height = window.innerHeight;
 
+  // Create blinking stars canvas (pre-intro layer)
+  const blinkingStarsCanvas = document.createElement("canvas");
+  blinkingStarsCanvas.id = "blinking-stars-canvas";
+  blinkingStarsCanvas.width = window.innerWidth;
+  blinkingStarsCanvas.height = window.innerHeight;
+  blinkingStarsCanvas.style.position = "fixed";
+  blinkingStarsCanvas.style.top = "0";
+  blinkingStarsCanvas.style.left = "0";
+  blinkingStarsCanvas.style.width = "100%";
+  blinkingStarsCanvas.style.height = "100%";
+  blinkingStarsCanvas.style.zIndex = "0";
+  blinkingStarsCanvas.style.pointerEvents = "none";
+  blinkingStarsCanvas.style.opacity = "1";
+  blinkingStarsCanvas.style.willChange = "opacity";
+  starsCanvasWrapper.insertBefore(blinkingStarsCanvas, starsCanvas);
+  const blinkingStarsCtx = blinkingStarsCanvas.getContext("2d", {
+    alpha: true,
+  });
+
+  // Blinking stars data
+  const blinkingStars = [];
+  const blinkingStarCount = 80;
+  const blinkingStarFadeOutDelay = 8; // 8 seconds after music starts
+  const blinkingStarFadeOutDuration = 12; // Fade out over 12 seconds
+
   // Screen shake parameters
   const shakeDuration = 1.5;
   const shakeDelayDuration = 0.5;
@@ -89,11 +114,13 @@
   const finalBlurFadeEnd = finalBlurFadeStart + finalBlurFadeDuration;
 
   // Chromatic aberration settings
-  const chromaticAberrationEnabled = true;
+  let chromaticAberrationEnabled = true;
   const chromaticAberrationStartTime = 64; // Start at 1:04 (first drop area)
   const chromaticAberrationEndTime = breakdownTime; // End at breakdown (1:35)
   const chromaticAberrationMaxOffset = 3; // Max pixel offset for color channels
   const chromaticAberrationIntensity = 0.6; // How much to use the offset (0-1)
+  const chromaticFadeOutStart = 190; // 3:10 - start fading out
+  const chromaticFadeOutEnd = 206; // 3:26 - completely gone
 
   // Device motion tilt offset
   let tiltOffsetX = 0;
@@ -155,12 +182,28 @@
     }
   });
 
+  // Initialize blinking stars (pre-intro layer)
+  for (let i = 0; i < blinkingStarCount; i++) {
+    blinkingStars.push({
+      x: Math.random() * blinkingStarsCanvas.width,
+      y: Math.random() * blinkingStarsCanvas.height,
+      vx: (Math.random() - 0.5) * 0.01, // Very slow movement
+      vy: (Math.random() - 0.5) * 0.01,
+      size: Math.random() * 1.5 + 0.5,
+      opacity: Math.random() * 0.6 + 0.4,
+      blinkSpeed: Math.random() * 2 + 1, // Blink frequency
+      blinkPhase: Math.random() * Math.PI * 2, // Random starting phase
+    });
+  }
+
   // Handle window resize
   window.addEventListener("resize", function () {
     const oldWidth = starsCanvas.width;
     const oldHeight = starsCanvas.height;
     starsCanvas.width = window.innerWidth;
     starsCanvas.height = window.innerHeight;
+    blinkingStarsCanvas.width = window.innerWidth;
+    blinkingStarsCanvas.height = window.innerHeight;
 
     const scaleX = starsCanvas.width / oldWidth;
     const scaleY = starsCanvas.height / oldHeight;
@@ -170,6 +213,11 @@
         star.x *= scaleX;
         star.y *= scaleY;
       });
+    });
+
+    blinkingStars.forEach((star) => {
+      star.x *= scaleX;
+      star.y *= scaleY;
     });
   });
 
@@ -242,6 +290,70 @@
       (currentTime >= firstDropTime && currentTime < breakdownTime) ||
       currentTime >= secondDropTime;
 
+    // =====================
+    // BLINKING STARS (Pre-intro layer)
+    // =====================
+    let blinkingStarsOpacity = 1.0;
+    let blinkingStarsActive = true;
+    if (currentTime >= blinkingStarFadeOutDelay) {
+      const fadeStartTime = blinkingStarFadeOutDelay;
+      const fadeEndTime = fadeStartTime + blinkingStarFadeOutDuration;
+      if (currentTime >= fadeStartTime && currentTime < fadeEndTime) {
+        const fadeProgress =
+          (currentTime - fadeStartTime) / blinkingStarFadeOutDuration;
+        blinkingStarsOpacity = 1.0 - fadeProgress;
+      } else if (currentTime >= fadeEndTime) {
+        blinkingStarsOpacity = 0;
+        blinkingStarsActive = false; // Kill the process after fade out
+      }
+    }
+
+    // Render blinking stars (only if active to save performance)
+    if (blinkingStarsActive) {
+      blinkingStarsCtx.clearRect(
+        0,
+        0,
+        blinkingStarsCanvas.width,
+        blinkingStarsCanvas.height
+      );
+      blinkingStarsCanvas.style.opacity = blinkingStarsOpacity;
+
+      if (blinkingStarsOpacity > 0) {
+        blinkingStars.forEach((star) => {
+          // Very slow movement
+          star.x += star.vx;
+          star.y += star.vy;
+
+          // Wrap around edges
+          if (star.x < 0) star.x = blinkingStarsCanvas.width;
+          if (star.x > blinkingStarsCanvas.width) star.x = 0;
+          if (star.y < 0) star.y = blinkingStarsCanvas.height;
+          if (star.y > blinkingStarsCanvas.height) star.y = 0;
+
+          // Calculate blink effect (sine wave)
+          const blinkValue =
+            Math.sin(currentTime * star.blinkSpeed + star.blinkPhase) * 0.5 +
+            0.5;
+          const finalOpacity = star.opacity * blinkValue * blinkingStarsOpacity;
+
+          // Draw star
+          blinkingStarsCtx.fillStyle = `rgba(255, 255, 255, ${finalOpacity})`;
+          blinkingStarsCtx.beginPath();
+          blinkingStarsCtx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+          blinkingStarsCtx.fill();
+        });
+      }
+    } else {
+      // Keep canvas cleared and hidden when not active
+      blinkingStarsCtx.clearRect(
+        0,
+        0,
+        blinkingStarsCanvas.width,
+        blinkingStarsCanvas.height
+      );
+      blinkingStarsCanvas.style.opacity = "0";
+    }
+
     // Handle opacity fade out before second drop and snap back
     let canvasOpacity = 1.0;
 
@@ -312,6 +424,23 @@
 
     // Calculate chromatic aberration offset (pulsing effect)
     let chromaticOffset = 0;
+    let chromaticIntensityMultiplier = 1.0;
+
+    // Check if we're in fade-out section (3:10 to 3:26)
+    if (
+      currentTime >= chromaticFadeOutStart &&
+      currentTime < chromaticFadeOutEnd
+    ) {
+      const fadeProgress =
+        (currentTime - chromaticFadeOutStart) /
+        (chromaticFadeOutEnd - chromaticFadeOutStart);
+      chromaticIntensityMultiplier = 1.0 - fadeProgress; // Fade from 1.0 to 0
+    } else if (currentTime >= chromaticFadeOutEnd) {
+      // Completely disable chromatic aberration after 3:26 to save performance
+      chromaticAberrationEnabled = false;
+      chromaticIntensityMultiplier = 0;
+    }
+
     if (
       chromaticAberrationEnabled &&
       currentTime >= chromaticAberrationStartTime &&
@@ -324,7 +453,8 @@
       chromaticOffset =
         Math.sin(chromaticProgress * Math.PI * 4) * // 2 full pulses
         chromaticAberrationMaxOffset *
-        chromaticAberrationIntensity;
+        chromaticAberrationIntensity *
+        chromaticIntensityMultiplier;
     } else if (chromaticAberrationEnabled && currentTime >= invertBackTime) {
       // Rotating effect from 2:40 onwards (with zoom and rotation)
       const rotationProgress =
@@ -332,7 +462,8 @@
       chromaticOffset =
         Math.sin(rotationProgress * Math.PI * 2) *
         chromaticAberrationMaxOffset *
-        chromaticAberrationIntensity;
+        chromaticAberrationIntensity *
+        chromaticIntensityMultiplier;
     }
 
     // Calculate wrapper blur amount (blur out from 4px to 0px over first 24 seconds)

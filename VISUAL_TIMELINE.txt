@@ -1,0 +1,163 @@
+SORSARI - Into Twilight: Visual Timeline Chart
+===============================================
+
+TIME    0:00        0:31        1:04        1:35        2:07        2:40        3:10        3:26        3:35        4:00
+        |-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+INTRO   [FADE IN]   [ZOOM IN]   [ZOOM OUT]  [NORMAL]    [ZOOM IN]   [ZOOM OUT]  [FINAL ZOOM OUT]
+        |-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+
+BLINKING STARS
+        [RENDER]    [FADE OUT]  [KILLED]
+        |-----------|-----------|
+
+MAIN STARS
+        [ZOOM OUT]  [NORMAL]    [FAST DOWN] [DECEL]     [FAST UP]   [NORMAL]    [FADE OUT]  [KILLED]
+        |-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+
+STARS CHROMATIC ABERRATION
+                    [PULSING]   [OFF]       [OFF]       [ROTATING]  [FADE OUT]  [KILLED]
+                    |-----------|-----------|-----------|-----------|-----------|-----------|
+
+MODEL VIEWER CHROMATIC ABERRATION
+                    [PHASE 1]   [FADE OUT]  [OFF]       [PHASE 2]   [FADE OUT]  [PHASE 3]
+                    |-----------|-----------|-----------|-----------|-----------|-----------|
+
+UI GLITCH EFFECT
+                    [ACTIVE]    [FADE OUT]  [OFF]       [ACTIVE]    [FADE OUT]  [OFF]
+                    |-----------|-----------|-----------|-----------|-----------|-----------|
+
+SCREEN SHAKE
+                    [ACTIVE]    [ACTIVE]    [OFF]       [ACTIVE]    [ACTIVE]    [OFF]
+                    |-----------|-----------|-----------|-----------|-----------|-----------|
+
+CAMERA PAN & TILT
+                                                        [ENABLED]   [ENABLED]   [ENABLED]
+                                                        |-----------|-----------|-----------|
+
+INVERT FILTER
+                                                [ON]    [OFF]
+                                                |-------|
+
+FINAL IMAGE
+                                                                    [FADE IN]   [VISIBLE]
+                                                                    |-----------|-----------|
+
+BRIGHTNESS ANIMATION
+        [0.3]       [FADE]      [1.0]       [1.0]       [1.0]       [1.0]       [FADE OUT]  [0.0]
+        |-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+
+PARALLAX SHIFT (AUDIO-REACTIVE)
+        [OFF]       [ACTIVE]    [ACTIVE]    [OFF]       [ACTIVE]    [ACTIVE]    [FADE OUT]  [OFF]
+        |-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+
+BLOOM INTENSITY
+        [AUDIO-REACTIVE THROUGHOUT]
+        |-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+
+STAR PULSING
+        [AUDIO-REACTIVE THROUGHOUT]
+        |-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+
+KICK DETECTION & COLOR FLASH
+        [AUDIO-REACTIVE THROUGHOUT]
+        |-----------|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+
+
+INTENSITY LEVELS BY PERIOD
+===========================
+
+0:00 - 0:31 (INTRO)
+  Rendering Load: MODERATE
+  - Blinking stars (80)
+  - Main stars zoom out
+  - Model viewer fade in & scale up
+  - Triangles brightness fade
+  - UI text fade in
+  - Audio analysis active
+
+0:31 - 1:35 (FIRST DROP)
+  Rendering Load: HIGH
+  - Screen shake (±4px)
+  - Model viewer zoom in + chromatic aberration
+  - Stars fast movement + chromatic aberration
+  - UI glitch effect on 4 elements
+  - Parallax shift on 4 elements
+  - Bloom updates
+  - Kick detection active
+
+1:35 - 2:07 (BREAKDOWN)
+  Rendering Load: MODERATE
+  - Stars deceleration then fade
+  - Model viewer zoom out
+  - Camera roving enabled
+  - Parallax shift continues
+  - Audio analysis active
+
+2:07 - 3:10 (SECOND DROP)
+  Rendering Load: HIGH
+  - Screen shake (±4px)
+  - Stars fast movement + chromatic aberration
+  - UI glitch effect on 4 elements
+  - Parallax shift on 4 elements
+  - Camera pan & tilt
+  - Invert filter applied then removed
+  - Bloom updates
+  - Kick detection active
+
+3:10 - 3:26 (FINAL FADE)
+  Rendering Load: MODERATE-HIGH
+  - Stars chromatic aberration fade out
+  - Model viewer final zoom out
+  - Model viewer fade out
+  - Final image fade in
+  - Multiple simultaneous fades
+
+3:26 - 4:00 (OUTRO)
+  Rendering Load: LOW
+  - Final image visible
+  - Camera pan & tilt continues
+  - Audio analysis continues
+  - Most visual effects disabled
+
+
+KEY TIMING CONSTANTS (in seconds)
+==================================
+
+INTRO PHASE
+  Blinking stars fade out: 8-20s
+  Stars zoom out: 0-20s
+  Stars blur out: 4-24s
+  Triangles brightness: 15.5-27.4s
+  UI text fade in: 8-24s
+
+FIRST DROP
+  Drop start: 31.5s
+  Model brightness: 31.5-32.4s
+  Model zoom in: 25-64s
+  Model zoom out: 64-94s
+  Stars fast movement: 31.85-95.8s
+  Stars chromatic: 64-95.8s
+  Screen shake: 31.5-95s
+  UI glitch: 31-96s
+
+BREAKDOWN
+  Stars deceleration: 95.8-97.8s
+  Stars fade: 123-127s
+
+SECOND DROP
+  Drop start: 127.78s
+  Stars fast movement: 127.78-160s
+  Stars chromatic: 160-206s
+  Screen shake: 127.03-192s
+  UI glitch: 127-190s
+  Invert filter: 128-160.06s
+  Camera pan: 160.06+s
+
+FINAL SECTION
+  Stars chromatic fade: 190-206s
+  Model final zoom: 195-215s
+  Model fade out: 205-215s
+  Final image load: 200s
+  Final image fade: 213-214.5s
+  Final blur fade: 214.5-229.5s
+
