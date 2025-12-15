@@ -23,6 +23,7 @@
     snesIntroCanvas.style.opacity = "1";
     snesIntroCanvas.style.willChange = "opacity";
     snesIntroCanvas.style.filter = "blur(0.5px)"; // Slight blur for retro feel
+    snesIntroCanvas.style.mixBlendMode = "screen"; // Additive blend for chromatic effect
     document.body.appendChild(snesIntroCanvas);
     const ctx = snesIntroCanvas.getContext("2d", { alpha: true });
 
@@ -73,8 +74,8 @@
 
       // Slow down animation to ~8 FPS for retro Nintendo feel
       const now = Date.now();
-      if (now - lastFrameTime < 125) {
-        // 125ms = ~8 FPS
+      if (now - lastFrameTime < 208) {
+        // 208ms = ~4.8 FPS (60% slower)
         requestAnimationFrame(animate);
         return;
       }
@@ -115,6 +116,9 @@
           const finalOpacity = star.opacity * twinkleValue;
           const colorRGB = star.hasColor ? star.colorRGB : "255, 255, 255";
 
+          // Minor chromatic aberration offset
+          const chromaOffset = Math.sin(elapsedTime * 2) * 0.3;
+
           if (star.isIntenseStar) {
             const intenseTwinkle =
               Math.sin(elapsedTime * star.intenseTwinkleSpeed) * 0.5 + 0.5;
@@ -122,7 +126,7 @@
             const rotation = elapsedTime * star.rotationSpeed;
 
             ctx.save();
-            ctx.translate(star.x, star.y);
+            ctx.translate(star.x + chromaOffset, star.y + chromaOffset);
             ctx.rotate(rotation);
             ctx.strokeStyle = `rgba(${colorRGB}, ${intenseOpacity})`;
             ctx.lineWidth = 1.5;
@@ -144,7 +148,47 @@
 
             ctx.restore();
           } else {
-            ctx.fillStyle = `rgba(${colorRGB}, ${finalOpacity})`;
+            // Draw with chromatic aberration (red, green, blue channels offset)
+            const offset = chromaOffset;
+
+            // Red channel
+            ctx.fillStyle = `rgba(255, 0, 0, ${finalOpacity * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(
+              star.x + offset,
+              star.y + offset,
+              star.size,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+
+            // Green channel
+            ctx.fillStyle = `rgba(0, 255, 0, ${finalOpacity * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(
+              star.x - offset * 0.5,
+              star.y - offset * 0.5,
+              star.size,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+
+            // Blue channel
+            ctx.fillStyle = `rgba(0, 0, 255, ${finalOpacity * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(
+              star.x - offset,
+              star.y - offset,
+              star.size,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+
+            // White base
+            ctx.fillStyle = `rgba(${colorRGB}, ${finalOpacity * 0.7})`;
             ctx.beginPath();
             ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
             ctx.fill();
