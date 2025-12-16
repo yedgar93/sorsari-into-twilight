@@ -14,15 +14,16 @@
   // Enable alpha channel for hyperspace layer (needs transparency for blue stars)
   const starsCtx = starsCanvas.getContext("2d", { alpha: true });
 
-  // Set initial canvas size
-  starsCanvas.width = window.innerWidth;
-  starsCanvas.height = window.innerHeight;
+  // Set initial canvas size (scaled to 0.75x for performance - stars are 1-2px anyway)
+  const canvasScale = 0.75;
+  starsCanvas.width = window.innerWidth * canvasScale;
+  starsCanvas.height = window.innerHeight * canvasScale;
 
   // Create blinking stars canvas (pre-intro layer)
   const blinkingStarsCanvas = document.createElement("canvas");
   blinkingStarsCanvas.id = "blinking-stars-canvas";
-  blinkingStarsCanvas.width = window.innerWidth;
-  blinkingStarsCanvas.height = window.innerHeight;
+  blinkingStarsCanvas.width = window.innerWidth * canvasScale;
+  blinkingStarsCanvas.height = window.innerHeight * canvasScale;
   blinkingStarsCanvas.style.position = "fixed";
   blinkingStarsCanvas.style.top = "0";
   blinkingStarsCanvas.style.left = "0";
@@ -213,10 +214,10 @@
   window.addEventListener("resize", function () {
     const oldWidth = starsCanvas.width;
     const oldHeight = starsCanvas.height;
-    starsCanvas.width = window.innerWidth;
-    starsCanvas.height = window.innerHeight;
-    blinkingStarsCanvas.width = window.innerWidth;
-    blinkingStarsCanvas.height = window.innerHeight;
+    starsCanvas.width = window.innerWidth * canvasScale;
+    starsCanvas.height = window.innerHeight * canvasScale;
+    blinkingStarsCanvas.width = window.innerWidth * canvasScale;
+    blinkingStarsCanvas.height = window.innerHeight * canvasScale;
 
     const scaleX = starsCanvas.width / oldWidth;
     const scaleY = starsCanvas.height / oldHeight;
