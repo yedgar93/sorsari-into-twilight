@@ -37,6 +37,72 @@ let failsafeRadialBlurPass = null;
 // Global pause state for failsafe
 let globalPauseState = { paused: false };
 
+// DOM update batching - collect all DOM changes and apply them once per frame
+let pendingDOMUpdates = {
+  bottomImage: null,
+  mobileLeftImage: null,
+  mobileRightImage: null,
+  trackTitle: null,
+  hasUpdates: false,
+};
+
+// Cache DOM element references (set during init)
+let cachedDOMElements = {
+  bottomImage: null,
+  mobileLeftImage: null,
+  mobileRightImage: null,
+  trackTitle: null,
+};
+
+// Batch DOM updates to reduce layout thrashing
+function batchDOMUpdate(elementId, transform) {
+  if (!elementId || !transform) return;
+
+  // Store by element ID instead of reference to avoid scope issues
+  if (elementId === "bottomImage") {
+    pendingDOMUpdates.bottomImage = transform;
+    pendingDOMUpdates.hasUpdates = true;
+  } else if (elementId === "mobileLeftImage") {
+    pendingDOMUpdates.mobileLeftImage = transform;
+    pendingDOMUpdates.hasUpdates = true;
+  } else if (elementId === "mobileRightImage") {
+    pendingDOMUpdates.mobileRightImage = transform;
+    pendingDOMUpdates.hasUpdates = true;
+  } else if (elementId === "trackTitle") {
+    pendingDOMUpdates.trackTitle = transform;
+    pendingDOMUpdates.hasUpdates = true;
+  }
+}
+
+// Apply all batched DOM updates at once
+function flushDOMUpdates() {
+  if (!pendingDOMUpdates.hasUpdates) return;
+
+  if (pendingDOMUpdates.bottomImage !== null && cachedDOMElements.bottomImage) {
+    cachedDOMElements.bottomImage.style.transform =
+      pendingDOMUpdates.bottomImage;
+  }
+  if (
+    pendingDOMUpdates.mobileLeftImage !== null &&
+    cachedDOMElements.mobileLeftImage
+  ) {
+    cachedDOMElements.mobileLeftImage.style.transform =
+      pendingDOMUpdates.mobileLeftImage;
+  }
+  if (
+    pendingDOMUpdates.mobileRightImage !== null &&
+    cachedDOMElements.mobileRightImage
+  ) {
+    cachedDOMElements.mobileRightImage.style.transform =
+      pendingDOMUpdates.mobileRightImage;
+  }
+  if (pendingDOMUpdates.trackTitle !== null && cachedDOMElements.trackTitle) {
+    cachedDOMElements.trackTitle.style.transform = pendingDOMUpdates.trackTitle;
+  }
+
+  pendingDOMUpdates.hasUpdates = false;
+}
+
 // Check for low-power conditions
 function checkLowPowerConditions() {
   // Check 1: Data Saver mode
@@ -921,11 +987,19 @@ function init() {
     const mobileLeftImage = document.getElementById("mobile-left-image");
     const mobileRightImage = document.getElementById("mobile-right-image");
     const trackTitle = document.getElementById("track-title");
+
+    // Cache DOM elements for batched updates
+    cachedDOMElements.bottomImage = bottomImage;
+    cachedDOMElements.mobileLeftImage = mobileLeftImage;
+    cachedDOMElements.mobileRightImage = mobileRightImage;
+    cachedDOMElements.trackTitle = trackTitle;
+
     const parallaxMaxShift = 3.275; // Maximum pixels to shift (creates breathing effect)
     const parallaxSensitivity = 0.476; // How much audio affects the shift (0-1)
 
     // Model viewer chromatic aberration settings
     const modelViewerWrapper = document.getElementById("model-viewer-wrapper");
+    const terrorModelViewer = document.querySelector("#terror-model-viewer"); // Cache this to avoid repeated queries
 
     // First drop chromatic aberration (1:31.85 to 1:35.8)
     const firstDropChromaticStartTime = 31.85; // 1:31.85 - first drop
@@ -971,10 +1045,10 @@ function init() {
 
     // Parallax throttling - update at reduced FPS based on CONFIG.fpsScale
     let parallaxFrameCount = 0;
-    const parallaxUpdateInterval = Math.max(
-      1,
-      Math.round(1 / (CONFIG.fpsScale * 0.5))
-    ); // 30fps target (0.5x of main FPS)
+    // On mobile: 15fps (every 4 frames at 60fps), on desktop: 30fps (every 2 frames)
+    const parallaxUpdateInterval = isMobile
+      ? 4
+      : Math.max(1, Math.round(1 / (CONFIG.fpsScale * 0.5)));
 
     // Individual parallax offsets for each element (randomized)
     const parallaxOffsets = {
@@ -1008,8 +1082,16 @@ function init() {
       animation.time += 1 / 30;
       frameCount++;
 
-      // Send audio data to worker for analysis (every frame)
-      if (audioReactive && audioElement && !audioElement.paused) {
+      // Send audio data to worker for analysis
+      // On mobile: every 2 frames (30fps) to reduce main thread load
+      // On desktop: every frame (60fps) for smooth reactivity
+      const audioAnalysisInterval = isMobile ? 2 : 1;
+      if (
+        audioReactive &&
+        audioElement &&
+        !audioElement.paused &&
+        frameCount % audioAnalysisInterval === 0
+      ) {
         sendAudioDataToWorker();
       }
 
@@ -1063,12 +1145,13 @@ function init() {
           const parallaxShift =
             parallaxPeakLevel * parallaxMaxShift * parallaxSensitivity;
 
+          // Batch DOM updates instead of writing directly (reduces layout thrashing)
           // Apply to bottom image with randomized offset and direction
           if (bottomImage) {
             const shift =
               parallaxShift * parallaxDirections.bottomImage +
               parallaxOffsets.bottomImage;
-            bottomImage.style.transform = `translateY(${shift}px)`;
+            batchDOMUpdate("bottomImage", `translateY(${shift}px)`);
           }
 
           // Apply to mobile left image with randomized offset and direction
@@ -1076,7 +1159,7 @@ function init() {
             const shift =
               parallaxShift * parallaxDirections.mobileLeftImage +
               parallaxOffsets.mobileLeftImage;
-            mobileLeftImage.style.transform = `translateY(${shift}px)`;
+            batchDOMUpdate("mobileLeftImage", `translateY(${shift}px)`);
           }
 
           // Apply to mobile right image with randomized offset and direction
@@ -1084,7 +1167,7 @@ function init() {
             const shift =
               parallaxShift * parallaxDirections.mobileRightImage +
               parallaxOffsets.mobileRightImage;
-            mobileRightImage.style.transform = `translateY(${shift}px)`;
+            batchDOMUpdate("mobileRightImage", `translateY(${shift}px)`);
           }
 
           // Apply to track title - combine with existing translateX and randomized offset/direction
@@ -1092,7 +1175,10 @@ function init() {
             const shift =
               parallaxShift * parallaxDirections.trackTitle +
               parallaxOffsets.trackTitle;
-            trackTitle.style.transform = `translateX(-50%) translateY(${shift}px)`;
+            batchDOMUpdate(
+              "trackTitle",
+              `translateX(-50%) translateY(${shift}px)`
+            );
           }
 
           // Apply chromatic aberration to UI elements during drops (opposite to parallax direction)
@@ -1173,10 +1259,7 @@ function init() {
             applyGlitchEffect(mobileRightImage, "mobileRightImage");
             applyGlitchEffect(trackTitle, "trackTitle");
 
-            // Apply chromatic aberration to TERROR model
-            const terrorModelViewer = document.querySelector(
-              "#terror-model-viewer"
-            );
+            // Apply chromatic aberration to TERROR model (using cached reference)
             if (terrorModelViewer) {
               const redOpacity = 0.44 * glitchOpacity;
               const blueOpacity = 0.52 * glitchOpacity;
@@ -1202,10 +1285,7 @@ function init() {
               ghostMirrorState.trackTitle.active = false;
             }
 
-            // Remove chromatic aberration from TERROR model
-            const terrorModelViewer = document.querySelector(
-              "#terror-model-viewer"
-            );
+            // Remove chromatic aberration from TERROR model (using cached reference)
             if (terrorModelViewer) {
               terrorModelViewer.style.filter = "";
             }
@@ -1818,6 +1898,9 @@ function init() {
 
         animation.geometry.attributes.position.needsUpdate = true;
       }
+
+      // Flush all batched DOM updates at the end of the update callback
+      flushDOMUpdates();
     });
 
     // Handle both mouse and touch events (disabled when audio is reactive)
