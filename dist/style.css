@@ -98,6 +98,15 @@ body::before {
   }
 }
 
+@keyframes bgFadeIn {
+  0% {
+    background-color: #000000;
+  }
+  100% {
+    background-color: #010313;
+  }
+}
+
 body::after {
   content: "";
   position: fixed;
@@ -114,6 +123,7 @@ body::after {
   );
   mix-blend-mode: screen;
   filter: blur(2.5px);
+  will-change: opacity;
   opacity: 0;
 }
 
@@ -138,6 +148,220 @@ body.glow-active::after {
   );
   mix-blend-mode: screen;
   opacity: 1;
+}
+
+/* Touch to start container */
+#touch-to-start-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  z-index: 10003;
+  pointer-events: none;
+}
+
+/* Line 1: TOUCH TO START */
+#touch-to-start-line1 {
+  font-family: "Tiny5", monospace;
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.77);
+  text-align: center;
+  letter-spacing: 1px;
+  opacity: 0;
+  animation: touchToStartFade 0.125s forwards;
+  animation-delay: 3s;
+  height: 12px;
+  display: flex;
+  align-items: center;
+}
+
+/* Line 2: SOUND ON + speaker icon */
+#touch-to-start-line2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  animation: touchToStartFade 0.125s forwards;
+  animation-delay: 3s;
+  height: 12px;
+}
+
+#touch-to-start-line2 span {
+  font-family: "Tiny5", monospace;
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.77);
+  letter-spacing: 1px;
+}
+
+/* Volume icon container */
+#volume-icon {
+  width: 14px;
+  height: 14px;
+  position: relative;
+  opacity: 0.6;
+}
+
+/* Volume SVGs */
+.volume-svg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Volume animation: 1s speaker, 0.5s one arc, 0.5s two arcs, repeat (2s total) */
+@keyframes speakerShow {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 1;
+  }
+  50.1% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes oneArcShow {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0;
+  }
+  50.1% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  75.1% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes twoArcsShow {
+  0% {
+    opacity: 0;
+  }
+  75% {
+    opacity: 0;
+  }
+  75.1% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.volume-speaker {
+  animation: speakerShow 2s infinite;
+  animation-delay: 3s;
+}
+
+.volume-one-arc {
+  animation: oneArcShow 2s infinite;
+  animation-delay: 3s;
+}
+
+.volume-two-arcs {
+  animation: twoArcsShow 2s infinite;
+  animation-delay: 3s;
+}
+
+/* Fade out when song starts */
+body.glow-active #touch-to-start-container {
+  animation: touchToStartFadeOut 3s ease-out forwards;
+}
+
+body.glow-active #touch-to-start-line1,
+body.glow-active #touch-to-start-line2 {
+  animation: none;
+}
+
+body.glow-active .volume-svg {
+  animation: none;
+}
+
+/* Hide if song started before text appeared */
+#touch-to-start.hidden {
+  opacity: 0 !important;
+  animation: none !important;
+  pointer-events: none !important;
+}
+
+@keyframes touchToStartFade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0.77;
+  }
+}
+
+@keyframes touchToStartFadeOut {
+  0% {
+    opacity: 0.77;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Replay Button */
+#replay-button {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  z-index: 10005;
+  pointer-events: auto;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, transform 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+#replay-button svg {
+  width: 21px;
+  height: 21px;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+  transition: filter 0.2s ease, transform 0.1s ease;
+}
+
+#replay-button:hover svg {
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8));
+  transform: scale(1.03);
+}
+
+#replay-button:active {
+  transform: scale(0.95);
+}
+
+#replay-button.visible {
+  opacity: 1;
+  visibility: visible;
 }
 /* Alternative: Stronger pixelation effect (uncomment to use instead) */
 /*
@@ -176,7 +400,12 @@ body {
   overflow: hidden;
   font-family: monospace;
   cursor: auto;
-  background-color: #010313;
+  background-color: #000000;
+}
+
+/* Background fade-in animation when song starts */
+body.glow-active {
+  animation: bgFadeIn 12s ease-in forwards;
 }
 
 /* Prevent selection/dragging on visual layers (allow in debug UI) */
@@ -637,7 +866,8 @@ model-viewer::part(bar) {
   left: 0;
   height: 0.3vh;
   width: 0%;
-  background-color: rgba(255, 255, 255, 0.689);
+  /* background-color: rgba(255, 255, 255, 0.689); */
+  background-color: rgba(152, 106, 209, 0.859);
   z-index: 9998;
   opacity: 0.6;
   pointer-events: none;

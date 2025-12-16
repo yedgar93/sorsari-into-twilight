@@ -234,5 +234,16 @@
       snesIntroCanvas.width = window.innerWidth;
       snesIntroCanvas.height = window.innerHeight;
     });
+
+    // =====================
+    // RESET FUNCTION FOR REPLAY
+    // =====================
+    window.SORSARI = window.SORSARI || {};
+    SORSARI.resetSnesIntroAnimation = function () {
+      console.log("[SNES Intro] Resetting SNES intro animation");
+      // Clear canvas
+      ctx.clearRect(0, 0, snesIntroCanvas.width, snesIntroCanvas.height);
+      snesIntroCanvas.style.opacity = "1";
+    };
   }
 })();

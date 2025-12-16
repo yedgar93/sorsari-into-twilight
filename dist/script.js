@@ -226,6 +226,11 @@ function initAudio() {
         audioReactive = true;
         // Trigger glow fade-in animation when music starts
         document.body.classList.add("glow-active");
+        // Hide touch-to-start text if it hasn't appeared yet
+        const touchToStartElement = document.getElementById("touch-to-start");
+        if (touchToStartElement) {
+          touchToStartElement.classList.add("hidden");
+        }
         console.log("All tracks playing in sync:", {
           main: true,
           drums: !!drumsElement,
@@ -242,14 +247,34 @@ function initAudio() {
       });
   }
 
-  // Try to autoplay, fallback to click-to-play
-  playAllTracks();
+  // Check if autoplay parameter is set (from replay button)
+  const urlParams = new URLSearchParams(window.location.search);
+  const shouldAutoplay = urlParams.get("autoplay") === "true";
 
-  // Fallback for autoplay prevention
+  // Check if we're coming from a replay (stored in sessionStorage)
+  const isReplayingFromSession =
+    sessionStorage.getItem("isReplaying") === "true";
+
+  // Try to autoplay
+  if (shouldAutoplay || isReplayingFromSession) {
+    console.log("Autoplay enabled from replay - starting immediately");
+    // Clear the replay flag
+    sessionStorage.removeItem("isReplaying");
+    // Small delay to ensure audio context is ready after page reload
+    setTimeout(() => {
+      playAllTracks();
+    }, 100);
+  } else {
+    playAllTracks();
+  }
+
+  // Fallback for autoplay prevention (especially on mobile)
+  // On mobile, autoplay is blocked by browser policy, so we need a user gesture
   document.addEventListener(
     "click",
     function () {
       if (!audioReactive) {
+        console.log("User interaction detected - starting playback");
         playAllTracks();
       }
     },
@@ -271,6 +296,71 @@ function initAudio() {
     SORSARI.musicTime = seconds;
     console.log("Skipped all tracks to:", seconds, "seconds");
   };
+
+  // Replay button logic
+  let songEndedTime = null;
+  const replayButton = document.getElementById("replay-button");
+
+  // Detect when song ends
+  audioElement.addEventListener("ended", function () {
+    console.log("Song ended");
+    songEndedTime = Date.now();
+  });
+
+  // Check if 7 seconds have passed since song ended and show replay button
+  setInterval(() => {
+    if (songEndedTime && Date.now() - songEndedTime >= 3000) {
+      if (replayButton && !replayButton.classList.contains("visible")) {
+        replayButton.classList.add("visible");
+      }
+    }
+  }, 100);
+
+  // Expose replay function for use in init()
+  SORSARI.replay = function () {
+    console.log(
+      "Replaying song - fading out and refreshing page with autoplay"
+    );
+
+    // Set flag in sessionStorage to enable autoplay after reload
+    // This persists through the page refresh and allows autoplay on mobile
+    sessionStorage.setItem("isReplaying", "true");
+
+    // Fade out entire body
+    document.body.style.transition = "opacity 0.8s ease-in";
+    document.body.style.opacity = "0";
+
+    // Create fade overlay
+    const fadeOverlay = document.createElement("div");
+    fadeOverlay.style.position = "fixed";
+    fadeOverlay.style.top = "0";
+    fadeOverlay.style.left = "0";
+    fadeOverlay.style.width = "100%";
+    fadeOverlay.style.height = "100%";
+    fadeOverlay.style.backgroundColor = "rgba(0, 0, 0, 0)";
+    fadeOverlay.style.zIndex = "99999";
+    fadeOverlay.style.pointerEvents = "none";
+    fadeOverlay.style.transition = "background-color 0.8s ease-in";
+    document.body.appendChild(fadeOverlay);
+
+    // Trigger fade-out
+    setTimeout(() => {
+      fadeOverlay.style.backgroundColor = "rgba(0, 0, 0, 1)";
+    }, 10);
+
+    // Refresh page after fade completes using location.reload()
+    // This preserves the user gesture context better on mobile
+    setTimeout(() => {
+      location.reload();
+    }, 850);
+  };
+
+  // Replay button click handler
+  if (replayButton) {
+    replayButton.addEventListener("click", function () {
+      SORSARI.replay();
+    });
+  }
 }
 
 // Audio analysis is now handled by Web Worker (audio-worker.js)

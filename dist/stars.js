@@ -954,4 +954,43 @@
 
   let starsFrameCount = 0;
   animateStars();
+
+  // =====================
+  // RESET FUNCTION FOR REPLAY
+  // =====================
+  window.SORSARI = window.SORSARI || {};
+  SORSARI.resetStarsAnimation = function () {
+    console.log("[Stars] Resetting stars animation");
+
+    // Reset kill flags
+    starPulsingKilled = false;
+    starsAnimationKilled = false;
+
+    // Reset frame count
+    starsFrameCount = 0;
+
+    // Clear canvas
+    starsCtx.clearRect(0, 0, starsCanvas.width, starsCanvas.height);
+    blinkingStarsCtx.clearRect(
+      0,
+      0,
+      blinkingStarsCanvas.width,
+      blinkingStarsCanvas.height
+    );
+
+    // Reset all star pulse amounts
+    starLayers.forEach((layer) => {
+      layer.stars.forEach((star) => {
+        star.pulseAmount = 0;
+      });
+    });
+
+    // Reset hyperspace and reverse direction layers
+    hyperspaceLayer.stars.forEach((star) => {
+      star.z = star.baseZ;
+    });
+    reverseDirectionLayer.stars.forEach((star) => {
+      star.z = star.baseZ;
+    });
+  };
 })();

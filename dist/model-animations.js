@@ -573,4 +573,44 @@
   }
 
   animateTextFadeIn();
+
+  // =====================
+  // RESET FUNCTION FOR REPLAY
+  // =====================
+  window.SORSARI = window.SORSARI || {};
+  SORSARI.resetModelAnimations = function () {
+    console.log("[Model Animations] Resetting all animations");
+
+    // Reset time variables
+    time = 0;
+    cameraFrameCount = 0;
+    zoomFrameCount = 0;
+    currentSpinIndex = -1;
+    lastSpinEndYaw = 0;
+    lastSpinEndPitch = 75;
+    lastSpinEndTime = 0;
+    tiltInitialized = false;
+    finalImageLoaded = false;
+
+    // Reset model opacities and transforms
+    modelViewer.style.opacity = 0;
+    modelViewer.style.transform = "translate(-50%, -50%) scale(1)";
+
+    // Reset final image
+    finalImageContainer.style.opacity = 0;
+    finalImageContainer.style.pointerEvents = "none";
+    const finalImage = document.getElementById("final-image");
+    if (finalImage) {
+      finalImage.setAttribute("data-src", "SOSARI-BTS-FINAL-V4.JPG");
+      finalImage.src = "";
+    }
+
+    // Reset text and UI elements
+    sorsariText.style.opacity = 0;
+    trackTitle.style.opacity = 0;
+    terrorModel.style.opacity = 0;
+    bottomImage.style.opacity = 0;
+    mobileLeftImage.style.opacity = 0;
+    mobileRightImage.style.opacity = 0;
+  };
 })();
