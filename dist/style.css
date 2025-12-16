@@ -217,7 +217,7 @@ body.glow-active::after {
   stroke-linejoin: round;
 }
 
-/* Volume animation: 1s speaker, 0.5s one arc, 0.5s two arcs, repeat (2s total) */
+/* Volume animation: 1s speaker, 1s speaker with 1 arc, repeat (2s total) */
 @keyframes speakerShow {
   0% {
     opacity: 1;
@@ -243,27 +243,6 @@ body.glow-active::after {
   50.1% {
     opacity: 1;
   }
-  75% {
-    opacity: 1;
-  }
-  75.1% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
-@keyframes twoArcsShow {
-  0% {
-    opacity: 0;
-  }
-  75% {
-    opacity: 0;
-  }
-  75.1% {
-    opacity: 1;
-  }
   100% {
     opacity: 1;
   }
@@ -276,11 +255,6 @@ body.glow-active::after {
 
 .volume-one-arc {
   animation: oneArcShow 2s infinite;
-  animation-delay: 3s;
-}
-
-.volume-two-arcs {
-  animation: twoArcsShow 2s infinite;
   animation-delay: 3s;
 }
 
