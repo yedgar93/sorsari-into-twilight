@@ -29,6 +29,12 @@
 
     console.log("SNES intro canvas created!");
 
+    // Camera pan parameters (intro camera pan upward effect)
+    const cameraPanStartTime = 4.5; // Start panning at 1.5 seconds
+    const cameraPanEndTime = 22.0; // Stop panning at 7 seconds
+    const cameraPanDuration = cameraPanEndTime - cameraPanStartTime;
+    const cameraPanDistance = 66; // Pixels to pan downward (stars move down = camera pans up)
+
     // Star data
     const stars = [];
     const starCount = 120;
@@ -47,6 +53,24 @@
       stars.push({
         x: Math.random() * snesIntroCanvas.width,
         y: Math.random() * snesIntroCanvas.height,
+        size: Math.random() * 1.2 + 0.3,
+        opacity: Math.random() * 0.7 + 0.3,
+        twinkleSpeed: Math.random() * 3 + 1,
+        twinklePhase: Math.random() * Math.PI * 2,
+        colorRGB: colors[Math.floor(Math.random() * colors.length)],
+        hasColor: Math.random() < 0.6,
+        isIntenseStar: Math.random() < 0.05,
+        intenseTwinkleSpeed: Math.random() * 8 + 4,
+        rotationSpeed: Math.random() * 4 + 2,
+      });
+    }
+
+    // Add extra stars above the viewport for camera pan (1.5-7 seconds)
+    // These will scroll down to fill the gap as camera pans upward
+    for (let i = 0; i < starCount * 0.5; i++) {
+      stars.push({
+        x: Math.random() * snesIntroCanvas.width,
+        y: -cameraPanDistance - Math.random() * 100, // Start above viewport
         size: Math.random() * 1.2 + 0.3,
         opacity: Math.random() * 0.7 + 0.3,
         twinkleSpeed: Math.random() * 3 + 1,
@@ -93,6 +117,16 @@
       //   );
       // }
 
+      // Calculate camera pan offset (intro camera panning upward effect)
+      let cameraPanOffsetY = 0;
+      if (musicTime >= cameraPanStartTime && musicTime < cameraPanEndTime) {
+        const panProgress =
+          (musicTime - cameraPanStartTime) / cameraPanDuration;
+        cameraPanOffsetY = panProgress * cameraPanDistance; // Stars move down as camera pans up
+      } else if (musicTime >= cameraPanEndTime) {
+        cameraPanOffsetY = cameraPanDistance; // Stay at final pan position
+      }
+
       let opacity = 1.0;
       if (musicTime < fadeOutStart) {
         opacity = 1.0;
@@ -119,6 +153,9 @@
           // Minor chromatic aberration offset
           const chromaOffset = Math.sin(elapsedTime * 2) * 0.3;
 
+          // Apply camera pan offset to Y position
+          const starY = star.y + cameraPanOffsetY;
+
           if (star.isIntenseStar) {
             const intenseTwinkle =
               Math.sin(elapsedTime * star.intenseTwinkleSpeed) * 0.5 + 0.5;
@@ -126,7 +163,7 @@
             const rotation = elapsedTime * star.rotationSpeed;
 
             ctx.save();
-            ctx.translate(star.x + chromaOffset, star.y + chromaOffset);
+            ctx.translate(star.x + chromaOffset, starY + chromaOffset);
             ctx.rotate(rotation);
             ctx.strokeStyle = `rgba(${colorRGB}, ${intenseOpacity})`;
             ctx.lineWidth = 1.5;
@@ -154,13 +191,7 @@
             // Red channel
             ctx.fillStyle = `rgba(255, 0, 0, ${finalOpacity * 0.3})`;
             ctx.beginPath();
-            ctx.arc(
-              star.x + offset,
-              star.y + offset,
-              star.size,
-              0,
-              Math.PI * 2
-            );
+            ctx.arc(star.x + offset, starY + offset, star.size, 0, Math.PI * 2);
             ctx.fill();
 
             // Green channel
@@ -168,7 +199,7 @@
             ctx.beginPath();
             ctx.arc(
               star.x - offset * 0.5,
-              star.y - offset * 0.5,
+              starY - offset * 0.5,
               star.size,
               0,
               Math.PI * 2
@@ -178,19 +209,13 @@
             // Blue channel
             ctx.fillStyle = `rgba(0, 0, 255, ${finalOpacity * 0.3})`;
             ctx.beginPath();
-            ctx.arc(
-              star.x - offset,
-              star.y - offset,
-              star.size,
-              0,
-              Math.PI * 2
-            );
+            ctx.arc(star.x - offset, starY - offset, star.size, 0, Math.PI * 2);
             ctx.fill();
 
             // White base
             ctx.fillStyle = `rgba(${colorRGB}, ${finalOpacity * 0.7})`;
             ctx.beginPath();
-            ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+            ctx.arc(star.x, starY, star.size, 0, Math.PI * 2);
             ctx.fill();
           }
         });

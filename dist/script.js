@@ -224,6 +224,8 @@ function initAudio() {
     Promise.all(playPromises)
       .then(function () {
         audioReactive = true;
+        // Trigger glow fade-in animation when music starts
+        document.body.classList.add("glow-active");
         console.log("All tracks playing in sync:", {
           main: true,
           drums: !!drumsElement,
@@ -320,1218 +322,1261 @@ function init() {
   initAudio();
   initAudioWorker();
 
-  const root = new THREERoot({
-    createCameraControls: false,
-    antialias: window.devicePixelRatio === 1,
-    fov: 60,
-  });
+  let root = null;
+  let webglAvailable = true;
 
-  // Expose root for easter eggs
-  window.root = root;
-  root.renderer.setClearColor(0x000000, 0); // Transparent background
-  root.camera.position.set(0, 0, 200);
-  root.camera.lookAt(15, -25, 0); // Tilted down to avoid bright center
-
-  const light = new THREE.PointLight(0xffffff, 1.0);
-  root.add(light);
-
-  const vertices = [];
-  let indices;
-  let i, j;
-
-  // 1. generate random points in grid formation with some noise
-  const PHI = Math.PI * (3 - Math.sqrt(5));
-  const n = CONFIG.pointCount;
-  const radius = 100;
-  const noise = 4.0;
-
-  for (i = 0; i <= n; i++) {
-    const t = i * PHI;
-    const r = Math.sqrt(i) / Math.sqrt(n);
-    const x = r * Math.cos(t) * (radius - THREE.Math.randFloat(0, noise));
-    const y = r * Math.sin(t) * (radius - THREE.Math.randFloatSpread(0, noise));
-
-    vertices.push([x, y]);
-  }
-
-  // 2. generate indices
-  indices = Delaunay.triangulate(vertices);
-
-  // 2.5. reduce triangle count on mobile for better performance
-  if (isMobile) {
-    // Keep only every other triangle (50% reduction)
-    const reducedIndices = [];
-    for (let idx = 0; idx < indices.length; idx += 6) {
-      // Each triangle is 3 indices, skip every other triangle
-      if (idx + 2 < indices.length) {
-        reducedIndices.push(indices[idx]);
-        reducedIndices.push(indices[idx + 1]);
-        reducedIndices.push(indices[idx + 2]);
-      }
-    }
-    indices = reducedIndices;
-  }
-
-  // 3. create displacement splines
-  const pointsX = [];
-  const pointsY = [];
-  const segmentsX = CONFIG.splineStepsX;
-  const segmentsY = CONFIG.splineStepsY;
-
-  for (i = 0; i <= segmentsX; i++) {
-    pointsX.push(
-      new THREE.Vector3(
-        THREE.Math.mapLinear(i, 0, segmentsX, -radius, radius),
-        0,
-        i === 0 || i === segmentsX ? 0 : -THREE.Math.randFloat(64, 72)
-      )
-    );
-  }
-  for (i = 0; i <= segmentsY; i++) {
-    pointsY.push(
-      new THREE.Vector3(
-        0,
-        THREE.Math.mapLinear(i, 0, segmentsY, -radius, radius),
-        i === 0 || i === segmentsY ? 0 : -THREE.Math.randFloat(64, 72)
-      )
-    );
-  }
-
-  const splineX = new THREE.CatmullRomCurve3(pointsX);
-  const splineY = new THREE.CatmullRomCurve3(pointsY);
-
-  // line geometries for testing
-
-  //var g, m;
-  //g = new THREE.Geometry();
-  //g.vertices = splineX.getPoints(50);
-  //m = new THREE.LineBasicMaterial({color: 0xff0000});
-  //root.add(new THREE.Line(g, m));
-  //g = new THREE.Geometry();
-  //g.vertices = splineY.getPoints(50);
-  //m = new THREE.LineBasicMaterial({color: 0x00ff00});
-  //root.add(new THREE.Line(g, m));
-
-  // 4. generate geometry (maybe find a cheaper way to do this)
-  const geometry = new THREE.Geometry();
-  const shapeScale = 0.95;
-
-  for (i = 0; i < indices.length; i += 3) {
-    // build the face
-    let v0 = vertices[indices[i]];
-    let v1 = vertices[indices[i + 1]];
-    let v2 = vertices[indices[i + 2]];
-
-    // calculate centroid
-    const cx = (v0[0] + v1[0] + v2[0]) / 3;
-    const cy = (v0[1] + v1[1] + v2[1]) / 3;
-
-    // translate, scale, un-translate
-    v0 = [(v0[0] - cx) * shapeScale + cx, (v0[1] - cy) * shapeScale + cy];
-    v1 = [(v1[0] - cx) * shapeScale + cx, (v1[1] - cy) * shapeScale + cy];
-    v2 = [(v2[0] - cx) * shapeScale + cx, (v2[1] - cy) * shapeScale + cy];
-
-    // draw the face to a shape
-    const shape = new THREE.Shape();
-    shape.moveTo(v0[0], v0[1]);
-    shape.lineTo(v1[0], v1[1]);
-    shape.lineTo(v2[0], v2[1]);
-
-    // use the shape to create a geometry
-    const shapeGeometry = new THREE.ExtrudeGeometry(shape, {
-      amount: CONFIG.extrudeAmount,
-      bevelEnabled: false,
+  try {
+    root = new THREERoot({
+      createCameraControls: false,
+      antialias: window.devicePixelRatio === 1,
+      fov: 60,
     });
 
-    // offset z vector components based on the two splines
-    for (j = 0; j < shapeGeometry.vertices.length; j++) {
-      const v = shapeGeometry.vertices[j];
-      const ux = THREE.Math.clamp(
-        THREE.Math.mapLinear(v.x, -radius, radius, 0.0, 1.0),
-        0.0,
-        1.0
-      );
-      const uy = THREE.Math.clamp(
-        THREE.Math.mapLinear(v.y, -radius, radius, 0.0, 1.0),
-        0.0,
-        1.0
-      );
-
-      v.z += splineX.getPointAt(ux).z;
-      v.z += splineY.getPointAt(uy).z;
+    // Check if renderer is a real WebGL renderer or fallback
+    if (!root.renderer.render || typeof root.renderer.render !== "function") {
+      webglAvailable = false;
+      console.warn("WebGL not available - skipping 3D visualization");
     }
-
-    // merge into the whole
-    geometry.merge(shapeGeometry);
+  } catch (e) {
+    console.error("Failed to initialize THREE.js root:", e);
+    webglAvailable = false;
   }
 
-  geometry.center();
+  // Expose root for easter eggs (even if null)
+  window.root = root;
 
-  // 5. feed the geometry to the animation
-  const animation = new Animation(geometry);
-  root.add(animation);
+  // Only initialize 3D scene if WebGL is available
+  if (!webglAvailable || !root) {
+    console.log("Skipping 3D visualization - WebGL not available");
+    return; // Exit early if WebGL not available
+  }
 
-  // interactive
-  let paused = false;
+  try {
+    root.renderer.setClearColor(0x000000, 0); // Transparent background
+    root.camera.position.set(0, 0, 200);
+    root.camera.lookAt(15, -25, 0); // Tilted down to avoid bright center
 
-  // Page visibility detection listener
-  document.addEventListener("visibilitychange", function () {
-    isPageVisible = !document.hidden;
-    if (isPageVisible) {
-      console.log("Page visible - resuming full speed rendering");
-    } else {
-      console.log("Page hidden - reducing rendering frequency");
+    const light = new THREE.PointLight(0xffffff, 1.0);
+    root.add(light);
+
+    const vertices = [];
+    let indices;
+    let i, j;
+
+    // 1. generate random points in grid formation with some noise
+    const PHI = Math.PI * (3 - Math.sqrt(5));
+    const n = CONFIG.pointCount;
+    const radius = 100;
+    const noise = 4.0;
+
+    for (i = 0; i <= n; i++) {
+      const t = i * PHI;
+      const r = Math.sqrt(i) / Math.sqrt(n);
+      const x = r * Math.cos(t) * (radius - THREE.Math.randFloat(0, noise));
+      const y =
+        r * Math.sin(t) * (radius - THREE.Math.randFloatSpread(0, noise));
+
+      vertices.push([x, y]);
     }
-  });
 
-  // post processing - define early so we can use in update callback
-  // Reduce bloom quality on mobile for better performance
-  // Higher threshold = only bright parts bloom (only on bass hits)
-  const bloomPass = new THREE.BloomPass(2.0, 25, 4, 256); // Threshold 2.0 = only bloom on peaks, 256 resolution
+    // 2. generate indices
+    indices = Delaunay.triangulate(vertices);
 
-  // Radial blur shader for atmospheric background effect
-  const RadialBlurShader = {
-    uniforms: {
-      tDiffuse: { type: "t", value: null },
-      resolution: {
-        type: "v2",
-        value: new THREE.Vector2(window.innerWidth, window.innerHeight),
+    // 2.5. reduce triangle count on mobile for better performance
+    if (isMobile) {
+      // Keep only every other triangle (50% reduction)
+      const reducedIndices = [];
+      for (let idx = 0; idx < indices.length; idx += 6) {
+        // Each triangle is 3 indices, skip every other triangle
+        if (idx + 2 < indices.length) {
+          reducedIndices.push(indices[idx]);
+          reducedIndices.push(indices[idx + 1]);
+          reducedIndices.push(indices[idx + 2]);
+        }
+      }
+      indices = reducedIndices;
+    }
+
+    // 3. create displacement splines
+    const pointsX = [];
+    const pointsY = [];
+    const segmentsX = CONFIG.splineStepsX;
+    const segmentsY = CONFIG.splineStepsY;
+
+    for (i = 0; i <= segmentsX; i++) {
+      pointsX.push(
+        new THREE.Vector3(
+          THREE.Math.mapLinear(i, 0, segmentsX, -radius, radius),
+          0,
+          i === 0 || i === segmentsX ? 0 : -THREE.Math.randFloat(64, 72)
+        )
+      );
+    }
+    for (i = 0; i <= segmentsY; i++) {
+      pointsY.push(
+        new THREE.Vector3(
+          0,
+          THREE.Math.mapLinear(i, 0, segmentsY, -radius, radius),
+          i === 0 || i === segmentsY ? 0 : -THREE.Math.randFloat(64, 72)
+        )
+      );
+    }
+
+    const splineX = new THREE.CatmullRomCurve3(pointsX);
+    const splineY = new THREE.CatmullRomCurve3(pointsY);
+
+    // line geometries for testing
+
+    //var g, m;
+    //g = new THREE.Geometry();
+    //g.vertices = splineX.getPoints(50);
+    //m = new THREE.LineBasicMaterial({color: 0xff0000});
+    //root.add(new THREE.Line(g, m));
+    //g = new THREE.Geometry();
+    //g.vertices = splineY.getPoints(50);
+    //m = new THREE.LineBasicMaterial({color: 0x00ff00});
+    //root.add(new THREE.Line(g, m));
+
+    // 4. generate geometry (maybe find a cheaper way to do this)
+    const geometry = new THREE.Geometry();
+    const shapeScale = 0.95;
+
+    for (i = 0; i < indices.length; i += 3) {
+      // build the face
+      let v0 = vertices[indices[i]];
+      let v1 = vertices[indices[i + 1]];
+      let v2 = vertices[indices[i + 2]];
+
+      // calculate centroid
+      const cx = (v0[0] + v1[0] + v2[0]) / 3;
+      const cy = (v0[1] + v1[1] + v2[1]) / 3;
+
+      // translate, scale, un-translate
+      v0 = [(v0[0] - cx) * shapeScale + cx, (v0[1] - cy) * shapeScale + cy];
+      v1 = [(v1[0] - cx) * shapeScale + cx, (v1[1] - cy) * shapeScale + cy];
+      v2 = [(v2[0] - cx) * shapeScale + cx, (v2[1] - cy) * shapeScale + cy];
+
+      // draw the face to a shape
+      const shape = new THREE.Shape();
+      shape.moveTo(v0[0], v0[1]);
+      shape.lineTo(v1[0], v1[1]);
+      shape.lineTo(v2[0], v2[1]);
+
+      // use the shape to create a geometry
+      const shapeGeometry = new THREE.ExtrudeGeometry(shape, {
+        amount: CONFIG.extrudeAmount,
+        bevelEnabled: false,
+      });
+
+      // offset z vector components based on the two splines
+      for (j = 0; j < shapeGeometry.vertices.length; j++) {
+        const v = shapeGeometry.vertices[j];
+        const ux = THREE.Math.clamp(
+          THREE.Math.mapLinear(v.x, -radius, radius, 0.0, 1.0),
+          0.0,
+          1.0
+        );
+        const uy = THREE.Math.clamp(
+          THREE.Math.mapLinear(v.y, -radius, radius, 0.0, 1.0),
+          0.0,
+          1.0
+        );
+
+        v.z += splineX.getPointAt(ux).z;
+        v.z += splineY.getPointAt(uy).z;
+      }
+
+      // merge into the whole
+      geometry.merge(shapeGeometry);
+    }
+
+    geometry.center();
+
+    // 5. feed the geometry to the animation
+    const animation = new Animation(geometry);
+    root.add(animation);
+
+    // interactive
+    let paused = false;
+
+    // Page visibility detection listener
+    document.addEventListener("visibilitychange", function () {
+      isPageVisible = !document.hidden;
+      if (isPageVisible) {
+        console.log("Page visible - resuming full speed rendering");
+      } else {
+        console.log("Page hidden - reducing rendering frequency");
+      }
+    });
+
+    // post processing - define early so we can use in update callback
+    // Reduce bloom quality on mobile for better performance
+    // Higher threshold = only bright parts bloom (only on bass hits)
+    const bloomPass = new THREE.BloomPass(2.0, 25, 4, 256); // Threshold 2.0 = only bloom on peaks, 256 resolution
+
+    // Radial blur shader for atmospheric background effect
+    const RadialBlurShader = {
+      uniforms: {
+        tDiffuse: { type: "t", value: null },
+        resolution: {
+          type: "v2",
+          value: new THREE.Vector2(window.innerWidth, window.innerHeight),
+        },
+        strength: { type: "f", value: CONFIG.radialBlurStrength },
+        samples: { type: "i", value: CONFIG.radialBlurSamples },
       },
-      strength: { type: "f", value: CONFIG.radialBlurStrength },
-      samples: { type: "i", value: CONFIG.radialBlurSamples },
-    },
-    vertexShader: [
-      "varying vec2 vUv;",
-      "void main() {",
-      "  vUv = uv;",
-      "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
-      "}",
-    ].join("\n"),
-    fragmentShader: [
-      "uniform sampler2D tDiffuse;",
-      "uniform vec2 resolution;",
-      "uniform float strength;",
-      "uniform int samples;",
-      "varying vec2 vUv;",
-      "",
-      "void main() {",
-      "  vec2 center = vec2(0.5, 0.5);",
-      "  vec2 uv = vUv;",
-      "  vec2 dir = uv - center;",
-      "  float dist = length(dir);",
-      "  dir = normalize(dir);",
-      "  ",
-      "  vec4 color = texture2D(tDiffuse, uv);",
-      "  vec4 sum = color;",
-      "  ",
-      "  float blurAmount = strength * dist;",
-      "  ",
-      "  for(int i = 1; i < 12; i++) {",
-      "    if(i >= samples) break;",
-      "    float scale = 1.0 - blurAmount * (float(i) / float(samples));",
-      "    sum += texture2D(tDiffuse, center + dir * dist * scale);",
-      "  }",
-      "  ",
-      "  sum /= float(samples);",
-      "  gl_FragColor = sum;",
-      "}",
-    ].join("\n"),
-  };
+      vertexShader: [
+        "varying vec2 vUv;",
+        "void main() {",
+        "  vUv = uv;",
+        "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
+        "}",
+      ].join("\n"),
+      fragmentShader: [
+        "uniform sampler2D tDiffuse;",
+        "uniform vec2 resolution;",
+        "uniform float strength;",
+        "uniform int samples;",
+        "varying vec2 vUv;",
+        "",
+        "void main() {",
+        "  vec2 center = vec2(0.5, 0.5);",
+        "  vec2 uv = vUv;",
+        "  vec2 dir = uv - center;",
+        "  float dist = length(dir);",
+        "  dir = normalize(dir);",
+        "  ",
+        "  vec4 color = texture2D(tDiffuse, uv);",
+        "  vec4 sum = color;",
+        "  ",
+        "  float blurAmount = strength * dist;",
+        "  ",
+        "  for(int i = 1; i < 12; i++) {",
+        "    if(i >= samples) break;",
+        "    float scale = 1.0 - blurAmount * (float(i) / float(samples));",
+        "    sum += texture2D(tDiffuse, center + dir * dist * scale);",
+        "  }",
+        "  ",
+        "  sum /= float(samples);",
+        "  gl_FragColor = sum;",
+        "}",
+      ].join("\n"),
+    };
 
-  const radialBlurPass = new THREE.ShaderPass(RadialBlurShader);
-  const copyPass = new THREE.ShaderPass(THREE.CopyShader);
-  root.initPostProcessing([bloomPass, radialBlurPass, copyPass]);
+    const radialBlurPass = new THREE.ShaderPass(RadialBlurShader);
+    const copyPass = new THREE.ShaderPass(THREE.CopyShader);
+    root.initPostProcessing([bloomPass, radialBlurPass, copyPass]);
 
-  // Get access to the geometry vertices for speaker cone effect
-  const positions = animation.geometry.attributes.position.array;
-  const originalPositions = new Float32Array(positions.length);
-  for (let i = 0; i < positions.length; i++) {
-    originalPositions[i] = positions[i];
-  }
+    // Expose bloom and radial blur passes for debug controls
+    window.SORSARI = window.SORSARI || {};
+    window.SORSARI.bloomPass = bloomPass;
+    window.SORSARI.radialBlurPass = radialBlurPass;
 
-  // Speaker cone optimization disabled - was finding 0 vertices and adding unnecessary computation
-  // If needed in the future, can be re-enabled with proper model center detection
-
-  let frameCount = 0; // For throttling vertex updates
-  let cameraTime = 0; // For camera movement timing
-  const originalCameraPos = { x: 0, y: 0, z: 90 }; // Store original camera position after zoom-in
-  const upwardPanStartTime = 160.06; // 2:40:06 - when upward pan begins
-  const upwardPanSpeed = 2.125; // Units per second to pan upward (SUPER slow)
-  const upwardTiltSpeed = 10; // Degrees per second to tilt camera upward
-  let upwardPanEnabled = false; // Track if pan/tilt has been enabled
-
-  // Intro zoom settings
-  const dropTime = 31.5; // Time in seconds when the drop hits
-  const zoomDuration = 2.0; // Duration of zoom-in animation in seconds
-  const introZoomDistance = 1000; // Starting zoomed-out distance
-  const preDropZoomDistance = 450; // Slightly closer before the drop (subtle zoom)
-  const finalZoomDistance = 90; // Final zoomed-in distance
-  let hasZoomedIn = false;
-  const introZoomDuration = 32.0; // Duration of subtle intro zoom (first 30 seconds)
-
-  // Second drop zoom settings (breakdown at 1:35) - same pattern as first drop
-  const secondBreakdownStart = 95.0; // 1:35 - breakdown starts (like 0 seconds in intro)
-  const secondIntroZoomDuration = 30.0; // 30 seconds of subtle zoom (95-125)
-  const secondDropTime = 127; // 2:06.5 - second drop (95 + 31.5 seconds)
-  let hasSecondZoom = false;
-
-  // CSS filter inversion at second drop
-  let invertFilterApplied = false;
-  let invertFilterRemoved = false;
-  const threeContainer = document.getElementById("three-container");
-  const threeBlurWrapper = document.getElementById("three-blur-wrapper");
-
-  // Triangle canvas fade out timing
-  const triangleFadeOutStart = 185; // 3:05
-  const triangleFadeOutEnd = 215; // 3:35
-  const triangleFadeOutDuration = triangleFadeOutEnd - triangleFadeOutStart; // 30 seconds
-
-  // Triangle canvas blur timing
-  const triangleBlurStart = 178; // 2:58
-  const triangleBlurEnd = 215; // 3:35 (when fade out completes)
-  const triangleBlurDuration = triangleBlurEnd - triangleBlurStart; // 37 seconds
-
-  // Camera zoom out timing
-  const cameraZoomOutStart = 165; // 2:45
-  const cameraZoomOutEnd = 215; // 3:35 (when fade out completes)
-  const cameraZoomOutDuration = cameraZoomOutEnd - cameraZoomOutStart; // 50 seconds
-  const cameraZoomOutDistance = 300; // How far to pull back (added to current Z position)
-
-  // Camera roving settings
-  const beatsPerCycle = 64; // Number of beats for position orbit
-  const beatsPerLookCycle = 128; // Number of beats for look direction (tilt/pan)
-  const bpm = 120;
-  const secondsPerBeat = 60 / bpm;
-  const cycleDuration = beatsPerCycle * secondsPerBeat; // Position cycle time
-  const lookCycleDuration = beatsPerLookCycle * secondsPerBeat; // Look cycle time
-
-  // Scene rotation settings
-  const beatsPerRotation = 192; // Full rotation every 192 beats (50% slower than 128)
-  const rotationDuration = beatsPerRotation * secondsPerBeat; // Time for full 360° rotation
-
-  // Parallax depth shift settings
-  const bottomImage = document.getElementById("bottom-image");
-  const mobileLeftImage = document.getElementById("mobile-left-image");
-  const mobileRightImage = document.getElementById("mobile-right-image");
-  const trackTitle = document.getElementById("track-title");
-  const parallaxMaxShift = 3.275; // Maximum pixels to shift (creates breathing effect)
-  const parallaxSensitivity = 0.476; // How much audio affects the shift (0-1)
-
-  // Model viewer chromatic aberration settings
-  const modelViewerWrapper = document.getElementById("model-viewer-wrapper");
-
-  // First drop chromatic aberration (1:31.85 to 1:35.8)
-  const firstDropChromaticStartTime = 31.85; // 1:31.85 - first drop
-  const firstDropChromaticEndTime = 95.8; // 1:35.8 - breakdown
-  const firstDropChromaticStartAmount = 5; // Start at 15px
-  const firstDropChromaticMaxAmount = 10; // Max 30px
-
-  // Final chromatic aberration (3:12 onwards)
-  const finalChromaticStartTime = 191.72; // 3:12 - start chromatic aberration
-  const finalChromaticMaxAmount = 20; // Max pixel offset for chromatic aberration
-
-  // Triangles canvas brightness control
-  const trianglesStartValue = 0.3; // Start at 0.3 brightness
-  const trianglesDelayStart = 15.5; // Stay at 0.3 brightness until 15.5 seconds
-  const trianglesEndTime = 27.4; // Reach full brightness by 27.4 seconds
-  const trianglesEndValue = 1.0; // Full brightness
-  const trianglesFadeOutStart = 28.95; // Fade out from 0:28.5
-  const trianglesFadeOutEnd = 30.12; // Fade out complete at 0:29.5
-  const trianglesFadeInTime = 31.96; // Abruptly fade back in at 0:32
-
-  // Process kill times
-  const parallaxKillTime = 190; // Kill parallax shift at 3:10
-  const bloomKillTime = 190; // Kill bloom updates at 3:10
-  const kickDetectionKillTime = 190; // Kill kick detection at 3:10
-  const audioAnalysisKillTime = 206; // Kill audio analysis at 3:26
-  const screenShakeKillTime = 192; // Kill screen shake at 3:12
-  const cameraPanKillTime = 215; // Kill camera pan & tilt at 3:35
-  const centerModelKillTime = 215; // Kill center model at 3:35
-
-  // Process kill flags
-  let parallaxKilled = false;
-  let bloomKilled = false;
-  let kickDetectionKilled = false;
-  let audioAnalysisKilled = false;
-  let screenShakeKilled = false;
-  let cameraPanKilled = false;
-  let centerModelKilled = false;
-  let threeRenderingKilled = false;
-
-  // Peak detection for parallax
-  let parallaxPeakLevel = 0;
-  let parallaxPeakDecay = 0.9; // How fast the peak decays (0.9-0.99)
-
-  // Parallax throttling - update at reduced FPS based on CONFIG.fpsScale
-  let parallaxFrameCount = 0;
-  const parallaxUpdateInterval = Math.max(
-    1,
-    Math.round(1 / (CONFIG.fpsScale * 0.5))
-  ); // 30fps target (0.5x of main FPS)
-
-  // Individual parallax offsets for each element (randomized)
-  const parallaxOffsets = {
-    bottomImage: Math.random() * 0.3 - 0.15, // -0.15 to 0.15
-    mobileLeftImage: Math.random() * 0.3 - 0.16,
-    mobileRightImage: Math.random() * 0.3 - 0.15,
-    trackTitle: Math.random() * 0.297 - 0.14,
-  };
-
-  // Random direction multipliers (1 or -1) for each element
-  const parallaxDirections = {
-    bottomImage: Math.random() > 0.5 ? 1 : -1,
-    mobileLeftImage: Math.random() > 0.5 ? 1 : -1,
-    mobileRightImage: Math.random() > 0.5 ? 1 : -1,
-    trackTitle: Math.random() > 0.5 ? 1 : -1,
-  };
-
-  // Ghost mirror effect state (random mirroring for 0.5s)
-  const ghostMirrorState = {
-    bottomImage: { active: false, endTime: 0 },
-    mobileLeftImage: { active: false, endTime: 0 },
-    mobileRightImage: { active: false, endTime: 0 },
-    trackTitle: { active: false, endTime: 0 },
-  };
-  const ghostMirrorDuration = 0.5; // seconds
-  const ghostMirrorChance = 0.003; // ~0.3% chance per frame (rare)
-
-  root.addUpdateCallback(function () {
-    if (paused) return;
-
-    animation.time += 1 / 30;
-    frameCount++;
-
-    // Send audio data to worker for analysis (every frame)
-    if (audioReactive && audioElement && !audioElement.paused) {
-      sendAudioDataToWorker();
+    // Get access to the geometry vertices for speaker cone effect
+    const positions = animation.geometry.attributes.position.array;
+    const originalPositions = new Float32Array(positions.length);
+    for (let i = 0; i < positions.length; i++) {
+      originalPositions[i] = positions[i];
     }
 
-    // Only increment camera time if audio is playing
-    if (audioReactive && audioElement && !audioElement.paused) {
-      cameraTime += 1 / 30;
-      SORSARI.musicTime = audioElement.currentTime; // Use actual audio time for accuracy
-    }
+    // Speaker cone optimization disabled - was finding 0 vertices and adding unnecessary computation
+    // If needed in the future, can be re-enabled with proper model center detection
 
-    // Get current audio playback time
-    const currentTime = audioElement ? audioElement.currentTime : 0;
+    let frameCount = 0; // For throttling vertex updates
+    let cameraTime = 0; // For camera movement timing
+    const originalCameraPos = { x: 0, y: 0, z: 90 }; // Store original camera position after zoom-in
+    const upwardPanStartTime = 160.06; // 2:40:06 - when upward pan begins
+    const upwardPanSpeed = 2.125; // Units per second to pan upward (SUPER slow)
+    const upwardTiltSpeed = 10; // Degrees per second to tilt camera upward
+    let upwardPanEnabled = false; // Track if pan/tilt has been enabled
 
-    // Apply parallax depth shift to UI elements based on audio peaks
-    // Kill parallax process at 3:10 to save performance
-    if (currentTime >= parallaxKillTime) {
-      if (!parallaxKilled) {
-        parallaxKilled = true;
-        // Reset all parallax transforms
-        if (bottomImage) bottomImage.style.transform = "translateY(0px)";
-        if (mobileLeftImage)
-          mobileLeftImage.style.transform = "translateY(0px)";
-        if (mobileRightImage)
-          mobileRightImage.style.transform = "translateY(0px)";
-        if (trackTitle)
-          trackTitle.style.transform = "translateX(-50%) translateY(0px)";
+    // Intro zoom settings
+    const dropTime = 31.5; // Time in seconds when the drop hits
+    const zoomDuration = 2.0; // Duration of zoom-in animation in seconds
+    const introZoomDistance = 1000; // Starting zoomed-out distance
+    const preDropZoomDistance = 450; // Slightly closer before the drop (subtle zoom)
+    const finalZoomDistance = 90; // Final zoomed-in distance
+    let hasZoomedIn = false;
+    const introZoomDuration = 32.0; // Duration of subtle intro zoom (first 30 seconds)
+
+    // Second drop zoom settings (breakdown at 1:35) - same pattern as first drop
+    const secondBreakdownStart = 95.0; // 1:35 - breakdown starts (like 0 seconds in intro)
+    const secondIntroZoomDuration = 30.0; // 30 seconds of subtle zoom (95-125)
+    const secondDropTime = 127; // 2:06.5 - second drop (95 + 31.5 seconds)
+    let hasSecondZoom = false;
+
+    // CSS filter inversion at second drop
+    let invertFilterApplied = false;
+    let invertFilterRemoved = false;
+    const threeContainer = document.getElementById("three-container");
+    const threeBlurWrapper = document.getElementById("three-blur-wrapper");
+
+    // Triangle canvas fade out timing
+    const triangleFadeOutStart = 185; // 3:05
+    const triangleFadeOutEnd = 215; // 3:35
+    const triangleFadeOutDuration = triangleFadeOutEnd - triangleFadeOutStart; // 30 seconds
+
+    // Triangle canvas blur timing
+    const triangleBlurStart = 178; // 2:58
+    const triangleBlurEnd = 215; // 3:35 (when fade out completes)
+    const triangleBlurDuration = triangleBlurEnd - triangleBlurStart; // 37 seconds
+
+    // Camera zoom out timing
+    const cameraZoomOutStart = 165; // 2:45
+    const cameraZoomOutEnd = 215; // 3:35 (when fade out completes)
+    const cameraZoomOutDuration = cameraZoomOutEnd - cameraZoomOutStart; // 50 seconds
+    const cameraZoomOutDistance = 300; // How far to pull back (added to current Z position)
+
+    // Camera roving settings
+    const beatsPerCycle = 64; // Number of beats for position orbit
+    const beatsPerLookCycle = 128; // Number of beats for look direction (tilt/pan)
+    const bpm = 120;
+    const secondsPerBeat = 60 / bpm;
+    const cycleDuration = beatsPerCycle * secondsPerBeat; // Position cycle time
+    const lookCycleDuration = beatsPerLookCycle * secondsPerBeat; // Look cycle time
+
+    // Scene rotation settings
+    const beatsPerRotation = 192; // Full rotation every 192 beats (50% slower than 128)
+    const rotationDuration = beatsPerRotation * secondsPerBeat; // Time for full 360° rotation
+
+    // Parallax depth shift settings
+    const bottomImage = document.getElementById("bottom-image");
+    const mobileLeftImage = document.getElementById("mobile-left-image");
+    const mobileRightImage = document.getElementById("mobile-right-image");
+    const trackTitle = document.getElementById("track-title");
+    const parallaxMaxShift = 3.275; // Maximum pixels to shift (creates breathing effect)
+    const parallaxSensitivity = 0.476; // How much audio affects the shift (0-1)
+
+    // Model viewer chromatic aberration settings
+    const modelViewerWrapper = document.getElementById("model-viewer-wrapper");
+
+    // First drop chromatic aberration (1:31.85 to 1:35.8)
+    const firstDropChromaticStartTime = 31.85; // 1:31.85 - first drop
+    const firstDropChromaticEndTime = 95.8; // 1:35.8 - breakdown
+    const firstDropChromaticStartAmount = 5; // Start at 15px
+    const firstDropChromaticMaxAmount = 10; // Max 30px
+
+    // Final chromatic aberration (3:12 onwards)
+    const finalChromaticStartTime = 191.72; // 3:12 - start chromatic aberration
+    const finalChromaticMaxAmount = 20; // Max pixel offset for chromatic aberration
+
+    // Triangles canvas brightness control
+    const trianglesStartValue = 0.3; // Start at 0.3 brightness
+    const trianglesDelayStart = 15.5; // Stay at 0.3 brightness until 15.5 seconds
+    const trianglesEndTime = 27.4; // Reach full brightness by 27.4 seconds
+    const trianglesEndValue = 1.0; // Full brightness
+    const trianglesFadeOutStart = 28.95; // Fade out from 0:28.5
+    const trianglesFadeOutEnd = 30.12; // Fade out complete at 0:29.5
+    const trianglesFadeInTime = 31.96; // Abruptly fade back in at 0:32
+
+    // Process kill times
+    const parallaxKillTime = 190; // Kill parallax shift at 3:10
+    const bloomKillTime = 190; // Kill bloom updates at 3:10
+    const kickDetectionKillTime = 190; // Kill kick detection at 3:10
+    const audioAnalysisKillTime = 206; // Kill audio analysis at 3:26
+    const screenShakeKillTime = 192; // Kill screen shake at 3:12
+    const cameraPanKillTime = 215; // Kill camera pan & tilt at 3:35
+    const centerModelKillTime = 215; // Kill center model at 3:35
+
+    // Process kill flags
+    let parallaxKilled = false;
+    let bloomKilled = false;
+    let kickDetectionKilled = false;
+    let audioAnalysisKilled = false;
+    let screenShakeKilled = false;
+    let cameraPanKilled = false;
+    let centerModelKilled = false;
+    let threeRenderingKilled = false;
+
+    // Peak detection for parallax
+    let parallaxPeakLevel = 0;
+    let parallaxPeakDecay = 0.9; // How fast the peak decays (0.9-0.99)
+
+    // Parallax throttling - update at reduced FPS based on CONFIG.fpsScale
+    let parallaxFrameCount = 0;
+    const parallaxUpdateInterval = Math.max(
+      1,
+      Math.round(1 / (CONFIG.fpsScale * 0.5))
+    ); // 30fps target (0.5x of main FPS)
+
+    // Individual parallax offsets for each element (randomized)
+    const parallaxOffsets = {
+      bottomImage: Math.random() * 0.3 - 0.15, // -0.15 to 0.15
+      mobileLeftImage: Math.random() * 0.3 - 0.16,
+      mobileRightImage: Math.random() * 0.3 - 0.15,
+      trackTitle: Math.random() * 0.297 - 0.14,
+    };
+
+    // Random direction multipliers (1 or -1) for each element
+    const parallaxDirections = {
+      bottomImage: Math.random() > 0.5 ? 1 : -1,
+      mobileLeftImage: Math.random() > 0.5 ? 1 : -1,
+      mobileRightImage: Math.random() > 0.5 ? 1 : -1,
+      trackTitle: Math.random() > 0.5 ? 1 : -1,
+    };
+
+    // Ghost mirror effect state (random mirroring for 0.5s)
+    const ghostMirrorState = {
+      bottomImage: { active: false, endTime: 0 },
+      mobileLeftImage: { active: false, endTime: 0 },
+      mobileRightImage: { active: false, endTime: 0 },
+      trackTitle: { active: false, endTime: 0 },
+    };
+    const ghostMirrorDuration = 0.5; // seconds
+    const ghostMirrorChance = 0.003; // ~0.3% chance per frame (rare)
+
+    root.addUpdateCallback(function () {
+      if (paused) return;
+
+      animation.time += 1 / 30;
+      frameCount++;
+
+      // Send audio data to worker for analysis (every frame)
+      if (audioReactive && audioElement && !audioElement.paused) {
+        sendAudioDataToWorker();
       }
-    } else if (audioReactive && drumsAnalyser) {
-      // Throttle parallax updates based on global FPS scale (30fps target)
-      parallaxFrameCount++;
-      if (parallaxFrameCount % parallaxUpdateInterval !== 0) {
-        // Skip this frame's parallax update
-      } else {
-        // Get frequency data from drums track instead of master
-        drumsAnalyser.getByteFrequencyData(drumsDataArray);
 
-        // Calculate bass level from low frequencies (first 8 bins)
-        let bassSum = 0;
-        for (let i = 0; i < 8; i++) {
-          bassSum += drumsDataArray[i];
+      // Only increment camera time if audio is playing
+      if (audioReactive && audioElement && !audioElement.paused) {
+        cameraTime += 1 / 30;
+        SORSARI.musicTime = audioElement.currentTime; // Use actual audio time for accuracy
+      }
+
+      // Get current audio playback time
+      const currentTime = audioElement ? audioElement.currentTime : 0;
+
+      // Apply parallax depth shift to UI elements based on audio peaks
+      // Kill parallax process at 3:10 to save performance
+      if (currentTime >= parallaxKillTime) {
+        if (!parallaxKilled) {
+          parallaxKilled = true;
+          // Reset all parallax transforms
+          if (bottomImage) bottomImage.style.transform = "translateY(0px)";
+          if (mobileLeftImage)
+            mobileLeftImage.style.transform = "translateY(0px)";
+          if (mobileRightImage)
+            mobileRightImage.style.transform = "translateY(0px)";
+          if (trackTitle)
+            trackTitle.style.transform = "translateX(-50%) translateY(0px)";
         }
-        const audioLevel = bassSum / (8 * 255); // Normalize to 0-1
-
-        // Peak detection: only respond to peaks above the current peak level
-        if (audioLevel > parallaxPeakLevel) {
-          parallaxPeakLevel = audioLevel; // New peak detected
+      } else if (audioReactive && drumsAnalyser) {
+        // Throttle parallax updates based on global FPS scale (30fps target)
+        parallaxFrameCount++;
+        if (parallaxFrameCount % parallaxUpdateInterval !== 0) {
+          // Skip this frame's parallax update
         } else {
-          parallaxPeakLevel *= parallaxPeakDecay; // Decay the peak over time
-        }
+          // Get frequency data from drums track instead of master
+          drumsAnalyser.getByteFrequencyData(drumsDataArray);
 
-        // Use the peak level for parallax (creates pulsing effect)
-        const parallaxShift =
-          parallaxPeakLevel * parallaxMaxShift * parallaxSensitivity;
-
-        // Apply to bottom image with randomized offset and direction
-        if (bottomImage) {
-          const shift =
-            parallaxShift * parallaxDirections.bottomImage +
-            parallaxOffsets.bottomImage;
-          bottomImage.style.transform = `translateY(${shift}px)`;
-        }
-
-        // Apply to mobile left image with randomized offset and direction
-        if (mobileLeftImage) {
-          const shift =
-            parallaxShift * parallaxDirections.mobileLeftImage +
-            parallaxOffsets.mobileLeftImage;
-          mobileLeftImage.style.transform = `translateY(${shift}px)`;
-        }
-
-        // Apply to mobile right image with randomized offset and direction
-        if (mobileRightImage) {
-          const shift =
-            parallaxShift * parallaxDirections.mobileRightImage +
-            parallaxOffsets.mobileRightImage;
-          mobileRightImage.style.transform = `translateY(${shift}px)`;
-        }
-
-        // Apply to track title - combine with existing translateX and randomized offset/direction
-        if (trackTitle) {
-          const shift =
-            parallaxShift * parallaxDirections.trackTitle +
-            parallaxOffsets.trackTitle;
-          trackTitle.style.transform = `translateX(-50%) translateY(${shift}px)`;
-        }
-
-        // Apply chromatic aberration to UI elements during drops (opposite to parallax direction)
-        // First drop: 0:31 to 1:36, Second drop: 2:07 to 3:10, Fade out: 3:10 to 3:30
-        const isInDrop =
-          (currentTime >= 31 && currentTime < 96) || // First drop 0:31 to 1:36
-          (currentTime >= 127 && currentTime < 190); // Second drop 2:07 to 3:10
-
-        // Calculate opacity for fade out section (3:10 to 3:30)
-        let glitchOpacity = 1.0;
-        if (currentTime >= 190 && currentTime < 210) {
-          // Fade out from 1.0 to 0 over 20 seconds
-          glitchOpacity = 1.0 - (currentTime - 190) / 20;
-        } else if (currentTime >= 210) {
-          glitchOpacity = 0;
-        }
-
-        if (
-          (isInDrop || (currentTime >= 190 && currentTime < 210)) &&
-          glitchOpacity > 0
-        ) {
-          // Calculate chromatic offset based on parallax shift (MORE INTENSE)
-          const chromaticOffset = parallaxShift * 2.73 + 1.55; // Bigger multiplier + base offset
-
-          // Helper function to apply chromatic + optional ghost effects
-          const applyGlitchEffect = (element, key) => {
-            if (!element) return;
-
-            let dir = -parallaxDirections[key]; // Opposite direction
-            const ghost = ghostMirrorState[key];
-
-            // Random chance to trigger ghost effect (only if not already active)
-            if (!ghost.active && Math.random() < ghostMirrorChance) {
-              ghost.active = true;
-              ghost.endTime = currentTime + ghostMirrorDuration;
-              // Randomly choose effect type: 0 = reverse colors, 1 = flip horizontal, 2 = both
-              ghost.effectType = Math.floor(Math.random() * 3);
-            }
-
-            // Check if ghost effect should end
-            if (ghost.active && currentTime >= ghost.endTime) {
-              ghost.active = false;
-            }
-
-            // Apply ghost effects
-            let flipColors = false;
-            let flipHorizontal = false;
-            if (ghost.active) {
-              if (ghost.effectType === 0 || ghost.effectType === 2) {
-                flipColors = true; // Reverse chromatic aberration direction
-              }
-              if (ghost.effectType === 1 || ghost.effectType === 2) {
-                flipHorizontal = true; // Flip aberration horizontally (Y axis offset)
-              }
-            }
-
-            // Reverse direction if flipColors is active
-            if (flipColors) {
-              dir = -dir;
-            }
-
-            // Build filter string - horizontal flip adds Y offset
-            const yOffset = flipHorizontal ? chromaticOffset * 0.44 : 0;
-            const redOpacity = 0.26 * glitchOpacity;
-            const blueOpacity = 0.34 * glitchOpacity;
-            const filter = `drop-shadow(${
-              chromaticOffset * dir
-            }px ${yOffset}px 0px rgba(255, 0, 0, ${redOpacity})) drop-shadow(${
-              -chromaticOffset * dir
-            }px ${-yOffset}px 0px rgba(0, 0, 255, ${blueOpacity}))`;
-
-            element.style.filter = filter;
-          };
-
-          // Apply to each element
-          applyGlitchEffect(bottomImage, "bottomImage");
-          applyGlitchEffect(mobileLeftImage, "mobileLeftImage");
-          applyGlitchEffect(mobileRightImage, "mobileRightImage");
-          applyGlitchEffect(trackTitle, "trackTitle");
-
-          // Apply chromatic aberration to TERROR model
-          const terrorModelViewer = document.querySelector(
-            "#terror-model-viewer"
-          );
-          if (terrorModelViewer) {
-            const redOpacity = 0.44 * glitchOpacity;
-            const blueOpacity = 0.52 * glitchOpacity;
-            const terrorFilter = `drop-shadow(${chromaticOffset}px 0px 0px rgba(255, 0, 0, ${redOpacity})) drop-shadow(-${chromaticOffset}px 0px 0px rgba(0, 0, 255, ${blueOpacity}))`;
-            terrorModelViewer.style.filter = terrorFilter;
+          // Calculate bass level from low frequencies (first 8 bins)
+          let bassSum = 0;
+          for (let i = 0; i < 8; i++) {
+            bassSum += drumsDataArray[i];
           }
-        } else {
-          // Remove chromatic aberration and reset transforms when not in drop
+          const audioLevel = bassSum / (8 * 255); // Normalize to 0-1
+
+          // Peak detection: only respond to peaks above the current peak level
+          if (audioLevel > parallaxPeakLevel) {
+            parallaxPeakLevel = audioLevel; // New peak detected
+          } else {
+            parallaxPeakLevel *= parallaxPeakDecay; // Decay the peak over time
+          }
+
+          // Use the peak level for parallax (creates pulsing effect)
+          const parallaxShift =
+            parallaxPeakLevel * parallaxMaxShift * parallaxSensitivity;
+
+          // Apply to bottom image with randomized offset and direction
           if (bottomImage) {
-            bottomImage.style.filter = "";
-            ghostMirrorState.bottomImage.active = false;
+            const shift =
+              parallaxShift * parallaxDirections.bottomImage +
+              parallaxOffsets.bottomImage;
+            bottomImage.style.transform = `translateY(${shift}px)`;
           }
+
+          // Apply to mobile left image with randomized offset and direction
           if (mobileLeftImage) {
-            mobileLeftImage.style.filter = "";
-            ghostMirrorState.mobileLeftImage.active = false;
+            const shift =
+              parallaxShift * parallaxDirections.mobileLeftImage +
+              parallaxOffsets.mobileLeftImage;
+            mobileLeftImage.style.transform = `translateY(${shift}px)`;
           }
+
+          // Apply to mobile right image with randomized offset and direction
           if (mobileRightImage) {
-            mobileRightImage.style.filter = "";
-            ghostMirrorState.mobileRightImage.active = false;
+            const shift =
+              parallaxShift * parallaxDirections.mobileRightImage +
+              parallaxOffsets.mobileRightImage;
+            mobileRightImage.style.transform = `translateY(${shift}px)`;
           }
+
+          // Apply to track title - combine with existing translateX and randomized offset/direction
           if (trackTitle) {
-            trackTitle.style.filter = "";
-            ghostMirrorState.trackTitle.active = false;
+            const shift =
+              parallaxShift * parallaxDirections.trackTitle +
+              parallaxOffsets.trackTitle;
+            trackTitle.style.transform = `translateX(-50%) translateY(${shift}px)`;
           }
 
-          // Remove chromatic aberration from TERROR model
-          const terrorModelViewer = document.querySelector(
-            "#terror-model-viewer"
-          );
-          if (terrorModelViewer) {
-            terrorModelViewer.style.filter = "";
+          // Apply chromatic aberration to UI elements during drops (opposite to parallax direction)
+          // First drop: 0:31 to 1:36, Second drop: 2:07 to 3:10, Fade out: 3:10 to 3:30
+          const isInDrop =
+            (currentTime >= 31 && currentTime < 96) || // First drop 0:31 to 1:36
+            (currentTime >= 127 && currentTime < 190); // Second drop 2:07 to 3:10
+
+          // Calculate opacity for fade out section (3:10 to 3:30)
+          let glitchOpacity = 1.0;
+          if (currentTime >= 190 && currentTime < 210) {
+            // Fade out from 1.0 to 0 over 20 seconds
+            glitchOpacity = 1.0 - (currentTime - 190) / 20;
+          } else if (currentTime >= 210) {
+            glitchOpacity = 0;
           }
+
+          if (
+            (isInDrop || (currentTime >= 190 && currentTime < 210)) &&
+            glitchOpacity > 0
+          ) {
+            // Calculate chromatic offset based on parallax shift (MORE INTENSE)
+            const chromaticOffset = parallaxShift * 2.73 + 1.55; // Bigger multiplier + base offset
+
+            // Helper function to apply chromatic + optional ghost effects
+            const applyGlitchEffect = (element, key) => {
+              if (!element) return;
+
+              let dir = -parallaxDirections[key]; // Opposite direction
+              const ghost = ghostMirrorState[key];
+
+              // Random chance to trigger ghost effect (only if not already active)
+              if (!ghost.active && Math.random() < ghostMirrorChance) {
+                ghost.active = true;
+                ghost.endTime = currentTime + ghostMirrorDuration;
+                // Randomly choose effect type: 0 = reverse colors, 1 = flip horizontal, 2 = both
+                ghost.effectType = Math.floor(Math.random() * 3);
+              }
+
+              // Check if ghost effect should end
+              if (ghost.active && currentTime >= ghost.endTime) {
+                ghost.active = false;
+              }
+
+              // Apply ghost effects
+              let flipColors = false;
+              let flipHorizontal = false;
+              if (ghost.active) {
+                if (ghost.effectType === 0 || ghost.effectType === 2) {
+                  flipColors = true; // Reverse chromatic aberration direction
+                }
+                if (ghost.effectType === 1 || ghost.effectType === 2) {
+                  flipHorizontal = true; // Flip aberration horizontally (Y axis offset)
+                }
+              }
+
+              // Reverse direction if flipColors is active
+              if (flipColors) {
+                dir = -dir;
+              }
+
+              // Build filter string - horizontal flip adds Y offset
+              const yOffset = flipHorizontal ? chromaticOffset * 0.44 : 0;
+              const redOpacity = 0.26 * glitchOpacity;
+              const blueOpacity = 0.34 * glitchOpacity;
+              const filter = `drop-shadow(${
+                chromaticOffset * dir
+              }px ${yOffset}px 0px rgba(255, 0, 0, ${redOpacity})) drop-shadow(${
+                -chromaticOffset * dir
+              }px ${-yOffset}px 0px rgba(0, 0, 255, ${blueOpacity}))`;
+
+              element.style.filter = filter;
+            };
+
+            // Apply to each element
+            applyGlitchEffect(bottomImage, "bottomImage");
+            applyGlitchEffect(mobileLeftImage, "mobileLeftImage");
+            applyGlitchEffect(mobileRightImage, "mobileRightImage");
+            applyGlitchEffect(trackTitle, "trackTitle");
+
+            // Apply chromatic aberration to TERROR model
+            const terrorModelViewer = document.querySelector(
+              "#terror-model-viewer"
+            );
+            if (terrorModelViewer) {
+              const redOpacity = 0.44 * glitchOpacity;
+              const blueOpacity = 0.52 * glitchOpacity;
+              const terrorFilter = `drop-shadow(${chromaticOffset}px 0px 0px rgba(255, 0, 0, ${redOpacity})) drop-shadow(-${chromaticOffset}px 0px 0px rgba(0, 0, 255, ${blueOpacity}))`;
+              terrorModelViewer.style.filter = terrorFilter;
+            }
+          } else {
+            // Remove chromatic aberration and reset transforms when not in drop
+            if (bottomImage) {
+              bottomImage.style.filter = "";
+              ghostMirrorState.bottomImage.active = false;
+            }
+            if (mobileLeftImage) {
+              mobileLeftImage.style.filter = "";
+              ghostMirrorState.mobileLeftImage.active = false;
+            }
+            if (mobileRightImage) {
+              mobileRightImage.style.filter = "";
+              ghostMirrorState.mobileRightImage.active = false;
+            }
+            if (trackTitle) {
+              trackTitle.style.filter = "";
+              ghostMirrorState.trackTitle.active = false;
+            }
+
+            // Remove chromatic aberration from TERROR model
+            const terrorModelViewer = document.querySelector(
+              "#terror-model-viewer"
+            );
+            if (terrorModelViewer) {
+              terrorModelViewer.style.filter = "";
+            }
+          }
+        } // Close throttle check
+      }
+
+      // Camera zoom out from 2:45 to 3:35 (165s to 215s) - pull camera back on Z axis
+      let cameraZoomOutOffset = 0;
+      if (currentTime >= cameraZoomOutStart) {
+        const zoomOutProgress = Math.min(
+          (currentTime - cameraZoomOutStart) / cameraZoomOutDuration,
+          1.0
+        );
+        cameraZoomOutOffset = zoomOutProgress * cameraZoomOutDistance; // Pull back up to 300 units
+      }
+
+      // Handle multi-stage zoom animation
+      // FIRST DROP SEQUENCE (0-33.5 seconds)
+      if (currentTime < introZoomDuration) {
+        // Stage 1: Subtle intro zoom (0-30 seconds) - very slow zoom in
+        const introProgress = currentTime / introZoomDuration;
+        // Ease in-out for smooth subtle zoom
+        const easedIntroProgress =
+          introProgress < 0.5
+            ? 2 * introProgress * introProgress
+            : 1 - Math.pow(-2 * introProgress + 2, 2) / 2;
+        root.camera.position.z =
+          introZoomDistance +
+          (preDropZoomDistance - introZoomDistance) * easedIntroProgress +
+          cameraZoomOutOffset;
+      } else if (
+        currentTime >= dropTime &&
+        currentTime < dropTime + zoomDuration
+      ) {
+        // Stage 2: Big zoom-in at the drop (31.5-33.5 seconds)
+        const zoomProgress = (currentTime - dropTime) / zoomDuration;
+        // Ease out cubic for smooth deceleration
+        const easedProgress = 1 - Math.pow(1 - zoomProgress, 3);
+        // Interpolate camera Z position from pre-drop distance to final
+        root.camera.position.z =
+          preDropZoomDistance +
+          (finalZoomDistance - preDropZoomDistance) * easedProgress +
+          cameraZoomOutOffset;
+
+        if (!hasZoomedIn && zoomProgress >= 1.0) {
+          hasZoomedIn = true;
         }
-      } // Close throttle check
-    }
-
-    // Camera zoom out from 2:45 to 3:35 (165s to 215s) - pull camera back on Z axis
-    let cameraZoomOutOffset = 0;
-    if (currentTime >= cameraZoomOutStart) {
-      const zoomOutProgress = Math.min(
-        (currentTime - cameraZoomOutStart) / cameraZoomOutDuration,
-        1.0
-      );
-      cameraZoomOutOffset = zoomOutProgress * cameraZoomOutDistance; // Pull back up to 300 units
-    }
-
-    // Handle multi-stage zoom animation
-    // FIRST DROP SEQUENCE (0-33.5 seconds)
-    if (currentTime < introZoomDuration) {
-      // Stage 1: Subtle intro zoom (0-30 seconds) - very slow zoom in
-      const introProgress = currentTime / introZoomDuration;
-      // Ease in-out for smooth subtle zoom
-      const easedIntroProgress =
-        introProgress < 0.5
-          ? 2 * introProgress * introProgress
-          : 1 - Math.pow(-2 * introProgress + 2, 2) / 2;
-      root.camera.position.z =
-        introZoomDistance +
-        (preDropZoomDistance - introZoomDistance) * easedIntroProgress +
-        cameraZoomOutOffset;
-    } else if (
-      currentTime >= dropTime &&
-      currentTime < dropTime + zoomDuration
-    ) {
-      // Stage 2: Big zoom-in at the drop (31.5-33.5 seconds)
-      const zoomProgress = (currentTime - dropTime) / zoomDuration;
-      // Ease out cubic for smooth deceleration
-      const easedProgress = 1 - Math.pow(1 - zoomProgress, 3);
-      // Interpolate camera Z position from pre-drop distance to final
-      root.camera.position.z =
-        preDropZoomDistance +
-        (finalZoomDistance - preDropZoomDistance) * easedProgress +
-        cameraZoomOutOffset;
-
-      if (!hasZoomedIn && zoomProgress >= 1.0) {
-        hasZoomedIn = true;
+      } else if (currentTime >= introZoomDuration && currentTime < dropTime) {
+        // Between intro zoom and drop - hold at pre-drop distance
+        root.camera.position.z = preDropZoomDistance + cameraZoomOutOffset;
       }
-    } else if (currentTime >= introZoomDuration && currentTime < dropTime) {
-      // Between intro zoom and drop - hold at pre-drop distance
-      root.camera.position.z = preDropZoomDistance + cameraZoomOutOffset;
-    }
-    // SECOND DROP SEQUENCE (1:35-2:08.5 / 95-128.5 seconds) - same timing as first
-    else if (
-      currentTime >= secondBreakdownStart &&
-      currentTime < secondBreakdownStart + secondIntroZoomDuration
-    ) {
-      // Subtle zoom out during breakdown (95-125 seconds, 30 seconds)
-      const secondIntroProgress =
-        (currentTime - secondBreakdownStart) / secondIntroZoomDuration;
-      const easedSecondIntroProgress =
-        secondIntroProgress < 0.5
-          ? 2 * secondIntroProgress * secondIntroProgress
-          : 1 - Math.pow(-2 * secondIntroProgress + 2, 2) / 2;
-      root.camera.position.z =
-        finalZoomDistance +
-        (preDropZoomDistance - finalZoomDistance) * easedSecondIntroProgress +
-        cameraZoomOutOffset;
-    } else if (
-      currentTime >= secondDropTime &&
-      currentTime < secondDropTime + zoomDuration
-    ) {
-      // Big zoom back in at second drop (126.5-128.5 seconds)
-      const secondZoomProgress = (currentTime - secondDropTime) / zoomDuration;
-      const easedSecondProgress = 1 - Math.pow(1 - secondZoomProgress, 3);
-      root.camera.position.z =
-        preDropZoomDistance +
-        (finalZoomDistance - preDropZoomDistance) * easedSecondProgress +
-        cameraZoomOutOffset;
+      // SECOND DROP SEQUENCE (1:35-2:08.5 / 95-128.5 seconds) - same timing as first
+      else if (
+        currentTime >= secondBreakdownStart &&
+        currentTime < secondBreakdownStart + secondIntroZoomDuration
+      ) {
+        // Subtle zoom out during breakdown (95-125 seconds, 30 seconds)
+        const secondIntroProgress =
+          (currentTime - secondBreakdownStart) / secondIntroZoomDuration;
+        const easedSecondIntroProgress =
+          secondIntroProgress < 0.5
+            ? 2 * secondIntroProgress * secondIntroProgress
+            : 1 - Math.pow(-2 * secondIntroProgress + 2, 2) / 2;
+        root.camera.position.z =
+          finalZoomDistance +
+          (preDropZoomDistance - finalZoomDistance) * easedSecondIntroProgress +
+          cameraZoomOutOffset;
+      } else if (
+        currentTime >= secondDropTime &&
+        currentTime < secondDropTime + zoomDuration
+      ) {
+        // Big zoom back in at second drop (126.5-128.5 seconds)
+        const secondZoomProgress =
+          (currentTime - secondDropTime) / zoomDuration;
+        const easedSecondProgress = 1 - Math.pow(1 - secondZoomProgress, 3);
+        root.camera.position.z =
+          preDropZoomDistance +
+          (finalZoomDistance - preDropZoomDistance) * easedSecondProgress +
+          cameraZoomOutOffset;
 
-      if (!hasSecondZoom && secondZoomProgress >= 1.0) {
-        hasSecondZoom = true;
+        if (!hasSecondZoom && secondZoomProgress >= 1.0) {
+          hasSecondZoom = true;
+        }
+      } else if (
+        currentTime >= secondBreakdownStart + secondIntroZoomDuration &&
+        currentTime < secondDropTime
+      ) {
+        // Between second intro zoom and second drop - hold at pre-drop distance
+        root.camera.position.z = preDropZoomDistance + cameraZoomOutOffset;
       }
-    } else if (
-      currentTime >= secondBreakdownStart + secondIntroZoomDuration &&
-      currentTime < secondDropTime
-    ) {
-      // Between second intro zoom and second drop - hold at pre-drop distance
-      root.camera.position.z = preDropZoomDistance + cameraZoomOutOffset;
-    }
 
-    // Audio reactivity - only use actual bass from audio (throttled to 30fps)
-    // Kill audio analysis at 3:26 to save performance
-    let bass = 0;
-    if (currentTime < audioAnalysisKillTime) {
-      bass = getAudioDataThrottled();
-    } else if (!audioAnalysisKilled) {
-      audioAnalysisKilled = true;
-      // Reset audio-reactive values to defaults
-      animation.material.uniforms["uD"].value = 2.0;
-      animation.material.uniforms["uA"].value = 1.0;
-      animation.material.uniforms["roughness"].value = 0.5;
-      animation.material.uniforms["metalness"].value = 0.3;
-    }
-
-    // Fade in canvas opacity from 13 to 30 seconds
-    const fadeInStart = 13.0; // Start fading at 13 seconds
-    const fadeInEnd = 30.0; // Finish fading at 30 seconds
-    const currentAudioTime = audioElement ? audioElement.currentTime : 0;
-    if (currentAudioTime < fadeInStart) {
-      // Before 13 seconds - stay at 0 opacity
-      animation.material.uniforms["opacity"].value = 0.0;
-    } else if (currentAudioTime < fadeInEnd) {
-      // Between 13-30 seconds - fade from 0 to 1
-      const fadeProgress =
-        (currentAudioTime - fadeInStart) / (fadeInEnd - fadeInStart);
-      animation.material.uniforms["opacity"].value = fadeProgress;
-    } else {
-      // After 30 seconds - stay at full opacity
-      animation.material.uniforms["opacity"].value = 1.0;
-    }
-
-    // Rotate the entire scene slowly - full rotation every 128 beats
-    if (audioReactive && audioElement && !audioElement.paused) {
-      const rotationProgress =
-        (cameraTime % rotationDuration) / rotationDuration; // 0 to 1
-      const rotationAngle = (rotationProgress * (Math.PI * 2)) / 8; // 0 to 2π (360°)
-      animation.rotation.z = rotationAngle; // Rotate around Z axis
-    }
-
-    // Make the animation react to bass
-    // uD controls displacement/extrusion - pulsate with bass
-    animation.material.uniforms["uD"].value = 2.0 + bass * 24.0;
-
-    // uA controls animation amplitude - increase with bass
-    animation.material.uniforms["uA"].value = 1.0 + bass * 6.0;
-
-    // Make it more metallic and less rough when bass hits
-    animation.material.uniforms["roughness"].value = 0.5 - bass * 0.3;
-    animation.material.uniforms["metalness"].value = 0.3 + bass * 0.7;
-
-    // Kick detection and color flash (using drums track) - throttled to every 2 frames
-    // Kill kick detection at 3:10 to save performance
-    if (currentTime >= kickDetectionKillTime) {
-      if (!kickDetectionKilled) {
-        kickDetectionKilled = true;
-        // Reset to default color
-        animation.material.uniforms["diffuse"].value.copy(defaultColor);
-        colorFlashAmount = 0.0;
+      // Audio reactivity - only use actual bass from audio (throttled to 30fps)
+      // Kill audio analysis at 3:26 to save performance
+      let bass = 0;
+      if (currentTime < audioAnalysisKillTime) {
+        bass = getAudioDataThrottled();
+      } else if (!audioAnalysisKilled) {
+        audioAnalysisKilled = true;
+        // Reset audio-reactive values to defaults
+        animation.material.uniforms["uD"].value = 2.0;
+        animation.material.uniforms["uA"].value = 1.0;
+        animation.material.uniforms["roughness"].value = 0.5;
+        animation.material.uniforms["metalness"].value = 0.3;
       }
-    } else if (frameCount % 2 === 0) {
-      const drumsBass = getDrumsBasThrottled();
-      if (drumsBass > kickThreshold) {
-        // Kick detected - flash to pink
-        colorFlashAmount = Math.min(1.0, colorFlashAmount + 0.3);
+
+      // Fade in canvas opacity from 13 to 30 seconds
+      const fadeInStart = 13.0; // Start fading at 13 seconds
+      const fadeInEnd = 30.0; // Finish fading at 30 seconds
+      const currentAudioTime = audioElement ? audioElement.currentTime : 0;
+      if (currentAudioTime < fadeInStart) {
+        // Before 13 seconds - stay at 0 opacity
+        animation.material.uniforms["opacity"].value = 0.0;
+      } else if (currentAudioTime < fadeInEnd) {
+        // Between 13-30 seconds - fade from 0 to 1
+        const fadeProgress =
+          (currentAudioTime - fadeInStart) / (fadeInEnd - fadeInStart);
+        animation.material.uniforms["opacity"].value = fadeProgress;
       } else {
-        // Fade back to default color
-        colorFlashAmount = Math.max(0.0, colorFlashAmount - 0.05);
+        // After 30 seconds - stay at full opacity
+        animation.material.uniforms["opacity"].value = 1.0;
       }
 
-      // Interpolate between default color and kick color (reuse cached color object)
-      cachedInterpolatedColor
-        .copy(defaultColor)
-        .lerp(kickColor, colorFlashAmount);
-      animation.material.uniforms["diffuse"].value.copy(
+      // Rotate the entire scene slowly - full rotation every 128 beats
+      if (audioReactive && audioElement && !audioElement.paused) {
+        const rotationProgress =
+          (cameraTime % rotationDuration) / rotationDuration; // 0 to 1
+        const rotationAngle = (rotationProgress * (Math.PI * 2)) / 8; // 0 to 2π (360°)
+        animation.rotation.z = rotationAngle; // Rotate around Z axis
+      }
+
+      // Make the animation react to bass
+      // uD controls displacement/extrusion - pulsate with bass
+      animation.material.uniforms["uD"].value = 2.0 + bass * 24.0;
+
+      // uA controls animation amplitude - increase with bass
+      animation.material.uniforms["uA"].value = 1.0 + bass * 6.0;
+
+      // Make it more metallic and less rough when bass hits
+      animation.material.uniforms["roughness"].value = 0.5 - bass * 0.3;
+      animation.material.uniforms["metalness"].value = 0.3 + bass * 0.7;
+
+      // Kick detection and color flash (using drums track) - throttled to every 2 frames
+      // Kill kick detection at 3:10 to save performance
+      if (currentTime >= kickDetectionKillTime) {
+        if (!kickDetectionKilled) {
+          kickDetectionKilled = true;
+          // Reset to default color
+          animation.material.uniforms["diffuse"].value.copy(defaultColor);
+          colorFlashAmount = 0.0;
+        }
+      } else if (frameCount % 2 === 0) {
+        const drumsBass = getDrumsBasThrottled();
+        if (drumsBass > kickThreshold) {
+          // Kick detected - flash to pink
+          colorFlashAmount = Math.min(1.0, colorFlashAmount + 0.3);
+        } else {
+          // Fade back to default color
+          colorFlashAmount = Math.max(0.0, colorFlashAmount - 0.05);
+        }
+
+        // Interpolate between default color and kick color (reuse cached color object)
         cachedInterpolatedColor
-      );
-    }
-
-    // Update bloom intensity - throttled to every 3 frames
-    // Kill bloom at 3:10 to save performance
-    if (currentTime >= bloomKillTime) {
-      if (!bloomKilled) {
-        bloomKilled = true;
-        bloomPass.copyUniforms["opacity"].value = 0.0;
+          .copy(defaultColor)
+          .lerp(kickColor, colorFlashAmount);
+        animation.material.uniforms["diffuse"].value.copy(
+          cachedInterpolatedColor
+        );
       }
-    } else if (frameCount % 3 === 0) {
-      let bloomIntensity = 0.0; // No bloom by default
-      if (bass > 0.5) {
-        // Scale bloom intensity based on how much bass exceeds threshold
-        bloomIntensity = (bass - 0.5) * 2.0; // Amplify the bloom on peaks
+
+      // Update bloom intensity - throttled to every 3 frames
+      // Kill bloom at 3:10 to save performance
+      if (currentTime >= bloomKillTime) {
+        if (!bloomKilled) {
+          bloomKilled = true;
+          bloomPass.copyUniforms["opacity"].value = 0.0;
+        }
+      } else if (frameCount % 3 === 0) {
+        let bloomIntensity = 0.0; // No bloom by default
+        if (bass > 0.5) {
+          // Scale bloom intensity based on how much bass exceeds threshold
+          bloomIntensity = (bass - 0.5) * 2.0; // Amplify the bloom on peaks
+        }
+        bloomPass.copyUniforms["opacity"].value = bloomIntensity;
       }
-      bloomPass.copyUniforms["opacity"].value = bloomIntensity;
-    }
 
-    // Screen shake on drops
-    // Calculate drop states first (needed for both shake and screen shake application)
-    const isInFirstDrop =
-      currentTime >= firstDropTime && currentTime < firstDropShakeEndTime;
-    const isInSecondDrop =
-      currentTime >= secondDropTime && currentTime < secondDropShakeEndTime;
+      // Screen shake on drops
+      // Calculate drop states first (needed for both shake and screen shake application)
+      const isInFirstDrop =
+        currentTime >= firstDropTime && currentTime < firstDropShakeEndTime;
+      const isInSecondDrop =
+        currentTime >= secondDropTime && currentTime < secondDropShakeEndTime;
 
-    // Kill screen shake process at 3:12 to save performance
-    if (currentTime >= screenShakeKillTime) {
-      if (!screenShakeKilled) {
-        screenShakeKilled = true;
+      // Kill screen shake process at 3:12 to save performance
+      if (currentTime >= screenShakeKillTime) {
+        if (!screenShakeKilled) {
+          screenShakeKilled = true;
+          screenShakeActive = false;
+        }
+      } else if (isInFirstDrop || isInSecondDrop) {
+        // Determine if we should be shaking or in delay
+        if (!screenShakeActive) {
+          screenShakeActive = true;
+          shakeStartTime = currentTime;
+          isInShakeDelay = false;
+        }
+
+        const timeSinceShakeStart = currentTime - shakeStartTime;
+        const cycleTime =
+          timeSinceShakeStart % (shakeDuration + shakeDelayDuration);
+
+        if (cycleTime < shakeDuration) {
+          // In shake phase
+          isInShakeDelay = false;
+        } else {
+          // In delay phase
+          isInShakeDelay = true;
+        }
+      } else {
         screenShakeActive = false;
       }
-    } else if (isInFirstDrop || isInSecondDrop) {
-      // Determine if we should be shaking or in delay
-      if (!screenShakeActive) {
-        screenShakeActive = true;
-        shakeStartTime = currentTime;
-        isInShakeDelay = false;
-      }
 
-      const timeSinceShakeStart = currentTime - shakeStartTime;
-      const cycleTime =
-        timeSinceShakeStart % (shakeDuration + shakeDelayDuration);
-
-      if (cycleTime < shakeDuration) {
-        // In shake phase
-        isInShakeDelay = false;
-      } else {
-        // In delay phase
-        isInShakeDelay = true;
-      }
-    } else {
-      screenShakeActive = false;
-    }
-
-    // Kill center model rendering at 3:35 to save performance
-    if (currentTime >= centerModelKillTime) {
-      if (!centerModelKilled) {
-        centerModelKilled = true;
-        // Stop all camera animation
-        if (root.camera) {
-          root.camera.position.copy(originalCameraPos);
-          root.camera.lookAt(0, 0, 0);
+      // Kill center model rendering at 3:35 to save performance
+      if (currentTime >= centerModelKillTime) {
+        if (!centerModelKilled) {
+          centerModelKilled = true;
+          // Stop all camera animation
+          if (root.camera) {
+            root.camera.position.copy(originalCameraPos);
+            root.camera.lookAt(0, 0, 0);
+          }
         }
       }
-    }
-    // Camera roving - smooth circular motion that returns to origin
-    // Only move camera if controls are not enabled AND audio is playing AND zoom-in is complete
-    else if (
-      (!root.controls || !root.controls.enabled) &&
-      audioReactive &&
-      audioElement &&
-      !audioElement.paused &&
-      hasZoomedIn // Only start roving after zoom-in completes
-    ) {
-      const cycleProgress = (cameraTime % cycleDuration) / cycleDuration; // 0 to 1
-      const angle = cycleProgress * Math.PI * 2; // Full circle
+      // Camera roving - smooth circular motion that returns to origin
+      // Only move camera if controls are not enabled AND audio is playing AND zoom-in is complete
+      else if (
+        (!root.controls || !root.controls.enabled) &&
+        audioReactive &&
+        audioElement &&
+        !audioElement.paused &&
+        hasZoomedIn // Only start roving after zoom-in completes
+      ) {
+        const cycleProgress = (cameraTime % cycleDuration) / cycleDuration; // 0 to 1
+        const angle = cycleProgress * Math.PI * 2; // Full circle
 
-      // Smooth easing - slow at start/end, faster in middle
-      const eased = 0.5 - Math.cos(angle) * 0.5;
+        // Smooth easing - slow at start/end, faster in middle
+        const eased = 0.5 - Math.cos(angle) * 0.5;
 
-      // Gentle orbital movement
-      const orbitRadius = 15; // How far to move from center
-      const heightVariation = 8; // Vertical movement
+        // Gentle orbital movement
+        const orbitRadius = 15; // How far to move from center
+        const heightVariation = 8; // Vertical movement
 
-      root.camera.position.x =
-        originalCameraPos.x + Math.sin(angle) * orbitRadius * eased;
-      root.camera.position.y =
-        originalCameraPos.y + Math.sin(angle * 2) * heightVariation * eased;
-      root.camera.position.z =
-        originalCameraPos.z + Math.cos(angle) * 5 * eased + cameraZoomOutOffset; // Slight zoom in/out + zoom out offset
+        root.camera.position.x =
+          originalCameraPos.x + Math.sin(angle) * orbitRadius * eased;
+        root.camera.position.y =
+          originalCameraPos.y + Math.sin(angle * 2) * heightVariation * eased;
+        root.camera.position.z =
+          originalCameraPos.z +
+          Math.cos(angle) * 5 * eased +
+          cameraZoomOutOffset; // Slight zoom in/out + zoom out offset
 
-      // Camera look direction - tilts and pans over 128 beats
-      const lookProgress = (cameraTime % lookCycleDuration) / lookCycleDuration; // 0 to 1
-      const lookAngle = lookProgress * Math.PI * 2;
+        // Camera look direction - tilts and pans over 128 beats
+        const lookProgress =
+          (cameraTime % lookCycleDuration) / lookCycleDuration; // 0 to 1
+        const lookAngle = lookProgress * Math.PI * 2;
 
-      // Create a look target that orbits around the center point - EXTREME ANGLES
-      const lookOffset = 80; // Much larger offset for dramatic angle changes
-      const lookTargetX = Math.sin(lookAngle) * lookOffset;
-      const lookTargetY = Math.sin(lookAngle * 1.5) * lookOffset; // Full vertical tilt
-      const lookTargetZ = Math.cos(lookAngle * 0.8) * lookOffset * 0.8; // Strong depth variation
+        // Create a look target that orbits around the center point - EXTREME ANGLES
+        const lookOffset = 80; // Much larger offset for dramatic angle changes
+        const lookTargetX = Math.sin(lookAngle) * lookOffset;
+        const lookTargetY = Math.sin(lookAngle * 1.5) * lookOffset; // Full vertical tilt
+        const lookTargetZ = Math.cos(lookAngle * 0.8) * lookOffset * 0.8; // Strong depth variation
 
-      // Look at the offset target instead of dead center
-      root.camera.lookAt(lookTargetX, lookTargetY, lookTargetZ);
-    }
+        // Look at the offset target instead of dead center
+        root.camera.lookAt(lookTargetX, lookTargetY, lookTargetZ);
+      }
 
-    // At 2:40:06 (160.06 seconds), start panning camera upwards and tilting (ALWAYS active after this time)
-    // Kill camera pan at 3:35 to save performance
-    if (currentTime >= cameraPanKillTime) {
-      if (!cameraPanKilled) {
-        cameraPanKilled = true;
-        // Reset camera to original position
-        if (root.camera) {
-          root.camera.position.copy(originalCameraPos);
-          root.camera.lookAt(0, 0, 0);
+      // At 2:40:06 (160.06 seconds), start panning camera upwards and tilting (ALWAYS active after this time)
+      // Kill camera pan at 3:35 to save performance
+      if (currentTime >= cameraPanKillTime) {
+        if (!cameraPanKilled) {
+          cameraPanKilled = true;
+          // Reset camera to original position
+          if (root.camera) {
+            root.camera.position.copy(originalCameraPos);
+            root.camera.lookAt(0, 0, 0);
+          }
+        }
+      } else if (currentTime >= upwardPanStartTime) {
+        if (!upwardPanEnabled) {
+          console.log("Camera pan and tilt enabled at 2:40:06");
+          upwardPanEnabled = true;
+        }
+
+        const timeSincePanStart = currentTime - upwardPanStartTime;
+        const upwardPanOffset = timeSincePanStart * upwardPanSpeed; // Pan upwards SUPER slow
+        const tiltAmount = timeSincePanStart * upwardTiltSpeed; // Tilt upward over time
+
+        // Move the camera position upward (increase Y position)
+        root.camera.position.y = upwardPanOffset;
+
+        // Tilt camera upward by looking at a point that moves up over time
+        // Start looking at (0, 0, 0) and gradually look higher and higher
+        const lookAtY = tiltAmount; // Look target moves upward
+        root.camera.lookAt(0, lookAtY, 0);
+      }
+
+      // Apply CSS invert filter at second drop (2:08 / 128 seconds)
+      if (currentTime >= 128 && !invertFilterApplied) {
+        console.log(
+          "Applying invert filter at 2:08, currentTime:",
+          currentTime
+        );
+        console.log("threeContainer exists?", !!threeContainer);
+
+        if (threeContainer) {
+          // Apply invert + hue-rotate to keep colors looking the same
+          // Hue rotation of 180deg compensates for the color inversion
+          threeContainer.style.filter = "invert(100%) hue-rotate(180deg)";
+          console.log("Applied filter:", threeContainer.style.filter);
+        } else {
+          console.error("threeContainer is NULL!");
+        }
+
+        invertFilterApplied = true;
+        console.log("Inverted at 2:08");
+      }
+
+      // Apply screen shake to center model viewer during drops
+      if (!isInShakeDelay && (isInFirstDrop || isInSecondDrop)) {
+        const shakeOffsetX = (Math.random() - 0.5) * shakeIntensityCenter;
+        const shakeOffsetY = (Math.random() - 0.5) * shakeIntensityCenter;
+        threeContainer.style.transform = `translate(${shakeOffsetX}px, ${shakeOffsetY}px)`;
+      } else {
+        threeContainer.style.transform = "translate(0, 0)";
+      }
+
+      // Remove CSS invert filter at 2:40:06 (160.06 seconds)
+      if (
+        currentTime >= 160.06 &&
+        invertFilterApplied &&
+        !invertFilterRemoved
+      ) {
+        console.log(
+          "Removing invert filter at 2:40:06, currentTime:",
+          currentTime
+        );
+
+        if (threeContainer) {
+          threeContainer.style.filter = "none";
+          console.log("Removed filter");
+        }
+
+        invertFilterRemoved = true;
+        console.log("Inverted back at 2:40:06");
+      }
+
+      // Apply chromatic aberration to model viewer (two phases)
+      if (modelViewerWrapper) {
+        let chromaticAmount = 0;
+
+        // Phase 1: First drop (0:31.85 to 1:03) - STOP at 1:03
+        if (currentTime >= firstDropChromaticStartTime && currentTime < 63) {
+          const dropProgress =
+            (currentTime - firstDropChromaticStartTime) /
+            (firstDropChromaticEndTime - firstDropChromaticStartTime);
+          // Start at 5px, increase to 10px
+          chromaticAmount =
+            firstDropChromaticStartAmount +
+            dropProgress *
+              (firstDropChromaticMaxAmount - firstDropChromaticStartAmount);
+        }
+        // Fade out between 1:03 and 1:04 (63-64 seconds)
+        else if (currentTime >= 63 && currentTime < 64) {
+          // Calculate what the chromatic amount would be at 1:03
+          const dropProgress =
+            (63 - firstDropChromaticStartTime) /
+            (firstDropChromaticEndTime - firstDropChromaticStartTime);
+          const startAmount =
+            firstDropChromaticStartAmount +
+            dropProgress *
+              (firstDropChromaticMaxAmount - firstDropChromaticStartAmount);
+
+          // Now fade from that amount to 0
+          const fadeProgress = (currentTime - 63) / 1.0; // Fade over 1 second
+          chromaticAmount = startAmount * (1 - Math.min(1, fadeProgress));
+        }
+        // Phase 2: Second segment (1:50 to 2:40) - same params as first drop
+        else if (currentTime >= 110 && currentTime < 160) {
+          const segmentProgress = (currentTime - 110) / (160 - 110);
+          chromaticAmount =
+            firstDropChromaticStartAmount +
+            segmentProgress *
+              (firstDropChromaticMaxAmount - firstDropChromaticStartAmount);
+        }
+        // Fade out second segment (2:40 to 2:54) - 14 seconds
+        else if (currentTime >= 160 && currentTime < 174) {
+          const fadeProgress = (currentTime - 160) / 14; // Fade over 14 seconds
+          chromaticAmount = firstDropChromaticMaxAmount * (1 - fadeProgress);
+        }
+        // Phase 3: Final section (3:12 onwards)
+        else if (currentTime >= finalChromaticStartTime) {
+          const songEndTime = 240; // ~4:00 (end of song)
+          const chromaticProgress =
+            (currentTime - finalChromaticStartTime) /
+            (songEndTime - finalChromaticStartTime);
+          // Clamp to 0-1
+          const clampedProgress = Math.min(1, Math.max(0, chromaticProgress));
+          // Exponential curve for dramatic intensification
+          const intensity = Math.pow(clampedProgress, 1.5);
+          chromaticAmount = intensity * finalChromaticMaxAmount;
+        }
+
+        // Extract current brightness from the filter (set by model-animations.js)
+        const currentFilter = modelViewerWrapper.style.filter;
+        let brightness = 1.0; // Default to full brightness
+        if (currentFilter && currentFilter.includes("brightness")) {
+          const match = currentFilter.match(/brightness\(([\d.]+)\)/);
+          if (match) {
+            brightness = parseFloat(match[1]);
+          }
+        }
+
+        // Apply chromatic aberration filter combined with brightness
+        if (chromaticAmount > 0) {
+          const filterValue = `brightness(${brightness}) drop-shadow(${chromaticAmount}px 0px 0px rgba(255, 0, 0, 0.3)) drop-shadow(-${chromaticAmount}px 0px 0px rgba(0, 0, 255, 0.3))`;
+          modelViewerWrapper.style.filter = filterValue;
+        } else {
+          // Let model-animations.js handle the brightness filter
+          modelViewerWrapper.style.filter = `brightness(${brightness})`;
         }
       }
-    } else if (currentTime >= upwardPanStartTime) {
-      if (!upwardPanEnabled) {
-        console.log("Camera pan and tilt enabled at 2:40:06");
-        upwardPanEnabled = true;
+
+      // Blur triangle canvas wrapper from 2:58 to 3:35 (178s to 215s)
+      let triangleBlur = 0;
+      if (currentTime >= triangleBlurStart && currentTime <= triangleBlurEnd) {
+        const blurProgress =
+          (currentTime - triangleBlurStart) / triangleBlurDuration;
+        triangleBlur = blurProgress * 15; // Blur up to 15px
+      } else if (currentTime > triangleBlurEnd) {
+        triangleBlur = 15; // Max blur after end
       }
 
-      const timeSincePanStart = currentTime - upwardPanStartTime;
-      const upwardPanOffset = timeSincePanStart * upwardPanSpeed; // Pan upwards SUPER slow
-      const tiltAmount = timeSincePanStart * upwardTiltSpeed; // Tilt upward over time
-
-      // Move the camera position upward (increase Y position)
-      root.camera.position.y = upwardPanOffset;
-
-      // Tilt camera upward by looking at a point that moves up over time
-      // Start looking at (0, 0, 0) and gradually look higher and higher
-      const lookAtY = tiltAmount; // Look target moves upward
-      root.camera.lookAt(0, lookAtY, 0);
-    }
-
-    // Apply CSS invert filter at second drop (2:08 / 128 seconds)
-    if (currentTime >= 128 && !invertFilterApplied) {
-      console.log("Applying invert filter at 2:08, currentTime:", currentTime);
-      console.log("threeContainer exists?", !!threeContainer);
-
-      if (threeContainer) {
-        // Apply invert + hue-rotate to keep colors looking the same
-        // Hue rotation of 180deg compensates for the color inversion
-        threeContainer.style.filter = "invert(100%) hue-rotate(180deg)";
-        console.log("Applied filter:", threeContainer.style.filter);
-      } else {
-        console.error("threeContainer is NULL!");
+      // Apply blur to wrapper (separate from invert filter on container)
+      if (threeBlurWrapper) {
+        threeBlurWrapper.style.filter =
+          triangleBlur > 0 ? "blur(" + triangleBlur + "px)" : "none";
       }
 
-      invertFilterApplied = true;
-      console.log("Inverted at 2:08");
-    }
+      // Triangles canvas brightness animation (stay at 0.3 until 31.5s, then fade to 1.0 by 32.4s)
+      let trianglesBrightness = trianglesStartValue;
+      let trianglesOpacity = 1.0;
 
-    // Apply screen shake to center model viewer during drops
-    if (!isInShakeDelay && (isInFirstDrop || isInSecondDrop)) {
-      const shakeOffsetX = (Math.random() - 0.5) * shakeIntensityCenter;
-      const shakeOffsetY = (Math.random() - 0.5) * shakeIntensityCenter;
-      threeContainer.style.transform = `translate(${shakeOffsetX}px, ${shakeOffsetY}px)`;
-    } else {
-      threeContainer.style.transform = "translate(0, 0)";
-    }
-
-    // Remove CSS invert filter at 2:40:06 (160.06 seconds)
-    if (currentTime >= 160.06 && invertFilterApplied && !invertFilterRemoved) {
-      console.log(
-        "Removing invert filter at 2:40:06, currentTime:",
-        currentTime
-      );
-
-      if (threeContainer) {
-        threeContainer.style.filter = "none";
-        console.log("Removed filter");
-      }
-
-      invertFilterRemoved = true;
-      console.log("Inverted back at 2:40:06");
-    }
-
-    // Apply chromatic aberration to model viewer (two phases)
-    if (modelViewerWrapper) {
-      let chromaticAmount = 0;
-
-      // Phase 1: First drop (0:31.85 to 1:03) - STOP at 1:03
-      if (currentTime >= firstDropChromaticStartTime && currentTime < 63) {
-        const dropProgress =
-          (currentTime - firstDropChromaticStartTime) /
-          (firstDropChromaticEndTime - firstDropChromaticStartTime);
-        // Start at 5px, increase to 10px
-        chromaticAmount =
-          firstDropChromaticStartAmount +
-          dropProgress *
-            (firstDropChromaticMaxAmount - firstDropChromaticStartAmount);
-      }
-      // Fade out between 1:03 and 1:04 (63-64 seconds)
-      else if (currentTime >= 63 && currentTime < 64) {
-        // Calculate what the chromatic amount would be at 1:03
-        const dropProgress =
-          (63 - firstDropChromaticStartTime) /
-          (firstDropChromaticEndTime - firstDropChromaticStartTime);
-        const startAmount =
-          firstDropChromaticStartAmount +
-          dropProgress *
-            (firstDropChromaticMaxAmount - firstDropChromaticStartAmount);
-
-        // Now fade from that amount to 0
-        const fadeProgress = (currentTime - 63) / 1.0; // Fade over 1 second
-        chromaticAmount = startAmount * (1 - Math.min(1, fadeProgress));
-      }
-      // Phase 2: Second segment (1:50 to 2:40) - same params as first drop
-      else if (currentTime >= 110 && currentTime < 160) {
-        const segmentProgress = (currentTime - 110) / (160 - 110);
-        chromaticAmount =
-          firstDropChromaticStartAmount +
-          segmentProgress *
-            (firstDropChromaticMaxAmount - firstDropChromaticStartAmount);
-      }
-      // Fade out second segment (2:40 to 2:54) - 14 seconds
-      else if (currentTime >= 160 && currentTime < 174) {
-        const fadeProgress = (currentTime - 160) / 14; // Fade over 14 seconds
-        chromaticAmount = firstDropChromaticMaxAmount * (1 - fadeProgress);
-      }
-      // Phase 3: Final section (3:12 onwards)
-      else if (currentTime >= finalChromaticStartTime) {
-        const songEndTime = 240; // ~4:00 (end of song)
-        const chromaticProgress =
-          (currentTime - finalChromaticStartTime) /
-          (songEndTime - finalChromaticStartTime);
-        // Clamp to 0-1
-        const clampedProgress = Math.min(1, Math.max(0, chromaticProgress));
-        // Exponential curve for dramatic intensification
-        const intensity = Math.pow(clampedProgress, 1.5);
-        chromaticAmount = intensity * finalChromaticMaxAmount;
-      }
-
-      // Extract current brightness from the filter (set by model-animations.js)
-      const currentFilter = modelViewerWrapper.style.filter;
-      let brightness = 1.0; // Default to full brightness
-      if (currentFilter && currentFilter.includes("brightness")) {
-        const match = currentFilter.match(/brightness\(([\d.]+)\)/);
-        if (match) {
-          brightness = parseFloat(match[1]);
-        }
-      }
-
-      // Apply chromatic aberration filter combined with brightness
-      if (chromaticAmount > 0) {
-        const filterValue = `brightness(${brightness}) drop-shadow(${chromaticAmount}px 0px 0px rgba(255, 0, 0, 0.3)) drop-shadow(-${chromaticAmount}px 0px 0px rgba(0, 0, 255, 0.3))`;
-        modelViewerWrapper.style.filter = filterValue;
-      } else {
-        // Let model-animations.js handle the brightness filter
-        modelViewerWrapper.style.filter = `brightness(${brightness})`;
-      }
-    }
-
-    // Blur triangle canvas wrapper from 2:58 to 3:35 (178s to 215s)
-    let triangleBlur = 0;
-    if (currentTime >= triangleBlurStart && currentTime <= triangleBlurEnd) {
-      const blurProgress =
-        (currentTime - triangleBlurStart) / triangleBlurDuration;
-      triangleBlur = blurProgress * 15; // Blur up to 15px
-    } else if (currentTime > triangleBlurEnd) {
-      triangleBlur = 15; // Max blur after end
-    }
-
-    // Apply blur to wrapper (separate from invert filter on container)
-    if (threeBlurWrapper) {
-      threeBlurWrapper.style.filter =
-        triangleBlur > 0 ? "blur(" + triangleBlur + "px)" : "none";
-    }
-
-    // Triangles canvas brightness animation (stay at 0.3 until 31.5s, then fade to 1.0 by 32.4s)
-    let trianglesBrightness = trianglesStartValue;
-    let trianglesOpacity = 1.0;
-
-    // Fade out from 0:28.5 to 0:29.5
-    if (
-      currentTime >= trianglesFadeOutStart &&
-      currentTime < trianglesFadeOutEnd
-    ) {
-      const fadeOutProgress =
-        (currentTime - trianglesFadeOutStart) /
-        (trianglesFadeOutEnd - trianglesFadeOutStart);
-      trianglesBrightness = trianglesEndValue * (1 - fadeOutProgress); // Fade from 1.0 to 0.0
-      trianglesOpacity = 1 - fadeOutProgress; // Fade opacity from 1.0 to 0.0
-    }
-    // Abruptly fade back in at 0:32
-    else if (currentTime >= trianglesFadeInTime) {
-      trianglesBrightness = trianglesEndValue; // Jump back to 1.0
-      trianglesOpacity = 1.0; // Jump back to full opacity
-    }
-    // Normal brightness animation (0:15.5 to 0:27.4)
-    else if (
-      currentTime >= trianglesDelayStart &&
-      currentTime < trianglesEndTime
-    ) {
-      const trianglesProgress =
-        (currentTime - trianglesDelayStart) /
-        (trianglesEndTime - trianglesDelayStart);
-      trianglesBrightness =
-        trianglesStartValue +
-        (trianglesEndValue - trianglesStartValue) * trianglesProgress;
-    } else if (
-      currentTime >= trianglesEndTime &&
-      currentTime < trianglesFadeOutStart
-    ) {
-      trianglesBrightness = trianglesEndValue;
-    }
-
-    // Apply brightness filter to triangles container (combine with existing filters)
-    if (threeContainer) {
-      const currentFilter = threeContainer.style.filter || "none";
-      let filterValue = `brightness(${trianglesBrightness})`;
-
-      // Preserve existing filters (invert, blur, etc.)
-      if (currentFilter !== "none" && !currentFilter.includes("brightness")) {
-        filterValue = `${filterValue} ${currentFilter}`;
-      }
-
-      threeContainer.style.filter = filterValue;
-    }
-
-    // Handle all opacity changes (early fade takes priority)
-    if (threeContainer) {
-      // Early fade out from 0:28.5 to 0:29.5 (takes priority)
+      // Fade out from 0:28.5 to 0:29.5
       if (
         currentTime >= trianglesFadeOutStart &&
         currentTime < trianglesFadeOutEnd
       ) {
-        threeContainer.style.opacity = trianglesOpacity;
+        const fadeOutProgress =
+          (currentTime - trianglesFadeOutStart) /
+          (trianglesFadeOutEnd - trianglesFadeOutStart);
+        trianglesBrightness = trianglesEndValue * (1 - fadeOutProgress); // Fade from 1.0 to 0.0
+        trianglesOpacity = 1 - fadeOutProgress; // Fade opacity from 1.0 to 0.0
       }
-      // Keep invisible from 0:29.5 to 0:32
-      else if (
-        currentTime >= trianglesFadeOutEnd &&
-        currentTime < trianglesFadeInTime
-      ) {
-        threeContainer.style.opacity = 0;
-      }
-      // Later fade out from 3:05 to 3:35 (185s to 215s) - check this BEFORE the fade in condition
-      else if (
-        currentTime >= triangleFadeOutStart &&
-        currentTime <= triangleFadeOutEnd
-      ) {
-        const fadeProgress =
-          (currentTime - triangleFadeOutStart) / triangleFadeOutDuration;
-        const opacity = 1.0 - fadeProgress; // Fade from 1.0 to 0.0
-        threeContainer.style.opacity = opacity;
-      } else if (currentTime > triangleFadeOutEnd) {
-        // Keep at 0 opacity after fade completes
-        threeContainer.style.opacity = 0;
-      }
-      // Abruptly fade back in at 0:32 (but not if we're in the final fade out)
+      // Abruptly fade back in at 0:32
       else if (currentTime >= trianglesFadeInTime) {
-        threeContainer.style.opacity = 1.0;
+        trianglesBrightness = trianglesEndValue; // Jump back to 1.0
+        trianglesOpacity = 1.0; // Jump back to full opacity
       }
-    }
-
-    // Kill THREE.js rendering after triangles fade out completes (3:35)
-    if (currentTime >= triangleFadeOutEnd) {
-      if (!threeRenderingKilled) {
-        threeRenderingKilled = true;
-        // Stop the update callback to save performance
-        paused = true;
-        // Disable expensive post-processing passes
-        bloomPass.enabled = false;
-        radialBlurPass.enabled = false;
+      // Normal brightness animation (0:15.5 to 0:27.4)
+      else if (
+        currentTime >= trianglesDelayStart &&
+        currentTime < trianglesEndTime
+      ) {
+        const trianglesProgress =
+          (currentTime - trianglesDelayStart) /
+          (trianglesEndTime - trianglesDelayStart);
+        trianglesBrightness =
+          trianglesStartValue +
+          (trianglesEndValue - trianglesStartValue) * trianglesProgress;
+      } else if (
+        currentTime >= trianglesEndTime &&
+        currentTime < trianglesFadeOutStart
+      ) {
+        trianglesBrightness = trianglesEndValue;
       }
-    }
 
-    // Speaker cone effect - bass-reactive pulsing
-    const throttleInterval = isMobile ? 6 : 2; // Update every 6 frames on mobile, 2 on desktop
-    if (frameCount % throttleInterval === 0) {
-      const speakerPush = bass * 8.0; // how much to push in/out
+      // Apply brightness filter to triangles container (combine with existing filters)
+      if (threeContainer) {
+        const currentFilter = threeContainer.style.filter || "none";
+        let filterValue = `brightness(${trianglesBrightness})`;
 
-      // Loop through all vertices for speaker cone effect
-      for (let i = 0; i < positions.length; i += 3) {
-        const x = originalPositions[i];
-        const y = originalPositions[i + 1];
-        const z = originalPositions[i + 2];
-        const distFromCenter = Math.sqrt(x * x + y * y + z * z);
+        // Preserve existing filters (invert, blur, etc.)
+        if (currentFilter !== "none" && !currentFilter.includes("brightness")) {
+          filterValue = `${filterValue} ${currentFilter}`;
+        }
 
-        // Only affect vertices within a reasonable distance
-        if (distFromCenter > 0.1) {
-          const normalX = x / distFromCenter;
-          const normalY = y / distFromCenter;
-          const normalZ = z / distFromCenter;
+        threeContainer.style.filter = filterValue;
+      }
 
-          positions[i] = originalPositions[i] + normalX * speakerPush;
-          positions[i + 1] = originalPositions[i + 1] + normalY * speakerPush;
-          positions[i + 2] = originalPositions[i + 2] + normalZ * speakerPush;
+      // Handle all opacity changes (early fade takes priority)
+      if (threeContainer) {
+        // Early fade out from 0:28.5 to 0:29.5 (takes priority)
+        if (
+          currentTime >= trianglesFadeOutStart &&
+          currentTime < trianglesFadeOutEnd
+        ) {
+          threeContainer.style.opacity = trianglesOpacity;
+        }
+        // Keep invisible from 0:29.5 to 0:32
+        else if (
+          currentTime >= trianglesFadeOutEnd &&
+          currentTime < trianglesFadeInTime
+        ) {
+          threeContainer.style.opacity = 0;
+        }
+        // Later fade out from 3:05 to 3:35 (185s to 215s) - check this BEFORE the fade in condition
+        else if (
+          currentTime >= triangleFadeOutStart &&
+          currentTime <= triangleFadeOutEnd
+        ) {
+          const fadeProgress =
+            (currentTime - triangleFadeOutStart) / triangleFadeOutDuration;
+          const opacity = 1.0 - fadeProgress; // Fade from 1.0 to 0.0
+          threeContainer.style.opacity = opacity;
+        } else if (currentTime > triangleFadeOutEnd) {
+          // Keep at 0 opacity after fade completes
+          threeContainer.style.opacity = 0;
+        }
+        // Abruptly fade back in at 0:32 (but not if we're in the final fade out)
+        else if (currentTime >= trianglesFadeInTime) {
+          threeContainer.style.opacity = 1.0;
         }
       }
 
-      animation.geometry.attributes.position.needsUpdate = true;
+      // Kill THREE.js rendering after triangles fade out completes (3:35)
+      if (currentTime >= triangleFadeOutEnd) {
+        if (!threeRenderingKilled) {
+          threeRenderingKilled = true;
+          // Stop the update callback to save performance
+          paused = true;
+          // Disable expensive post-processing passes
+          bloomPass.enabled = false;
+          radialBlurPass.enabled = false;
+        }
+      }
+
+      // Speaker cone effect - bass-reactive pulsing
+      const throttleInterval = isMobile ? 6 : 2; // Update every 6 frames on mobile, 2 on desktop
+      if (frameCount % throttleInterval === 0) {
+        const speakerPush = bass * 8.0; // how much to push in/out
+
+        // Loop through all vertices for speaker cone effect
+        for (let i = 0; i < positions.length; i += 3) {
+          const x = originalPositions[i];
+          const y = originalPositions[i + 1];
+          const z = originalPositions[i + 2];
+          const distFromCenter = Math.sqrt(x * x + y * y + z * z);
+
+          // Only affect vertices within a reasonable distance
+          if (distFromCenter > 0.1) {
+            const normalX = x / distFromCenter;
+            const normalY = y / distFromCenter;
+            const normalZ = z / distFromCenter;
+
+            positions[i] = originalPositions[i] + normalX * speakerPush;
+            positions[i + 1] = originalPositions[i + 1] + normalY * speakerPush;
+            positions[i + 2] = originalPositions[i + 2] + normalZ * speakerPush;
+          }
+        }
+
+        animation.geometry.attributes.position.needsUpdate = true;
+      }
+    });
+
+    // Handle both mouse and touch events (disabled when audio is reactive)
+    function handleInteraction(clientX, clientY) {
+      if (paused || audioReactive) return; // Don't override audio reactivity
+
+      const px = clientX / window.innerWidth;
+      const py = clientY / window.innerHeight;
+
+      animation.material.uniforms["uD"].value = 2.0 + px * 16;
+      animation.material.uniforms["uA"].value = py * 4.0;
+
+      animation.material.uniforms["roughness"].value = px;
+      animation.material.uniforms["metalness"].value = py;
     }
-  });
 
-  // Handle both mouse and touch events (disabled when audio is reactive)
-  function handleInteraction(clientX, clientY) {
-    if (paused || audioReactive) return; // Don't override audio reactivity
+    root.container.addEventListener("mousemove", function (e) {
+      handleInteraction(e.clientX, e.clientY);
+    });
 
-    const px = clientX / window.innerWidth;
-    const py = clientY / window.innerHeight;
+    // Touch support for mobile
+    root.container.addEventListener(
+      "touchmove",
+      function (e) {
+        e.preventDefault();
+        if (e.touches.length > 0) {
+          handleInteraction(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      },
+      { passive: false }
+    );
 
-    animation.material.uniforms["uD"].value = 2.0 + px * 16;
-    animation.material.uniforms["uA"].value = py * 4.0;
+    root.container.addEventListener(
+      "touchstart",
+      function (e) {
+        e.preventDefault();
+        if (e.touches.length > 0) {
+          handleInteraction(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      },
+      { passive: false }
+    );
 
-    animation.material.uniforms["roughness"].value = px;
-    animation.material.uniforms["metalness"].value = py;
+    // Keyboard controls (P = pause, C = camera controls)
+    window.addEventListener("keyup", function (e) {
+      if (e.key === "p" || e.key === "P") {
+        paused = !paused;
+      }
+      if (e.key === "c" || e.key === "C") {
+        if (root.controls) {
+          root.controls.enabled = !root.controls.enabled;
+        } else {
+          root.createOrbitControls();
+        }
+      }
+    });
+
+    // dat.gui - DISABLED (library not included)
+    // var g = new dat.GUI();
+    // var colorProxy = {};
+
+    // Object.defineProperty(colorProxy, "diffuse", {
+    //   get: function () {
+    //     return "#" + animation.material.uniforms["diffuse"].value.getHexString();
+    //   },
+    //   set: function (v) {
+    //     animation.material.uniforms["diffuse"].value.set(v);
+    //   },
+    // });
+
+    // g.addColor(colorProxy, "diffuse").name("color");
+    // g.add(bloomPass.copyUniforms.opacity, "value").name("bloom str");
+  } catch (e) {
+    console.error("Error during 3D scene initialization:", e);
+    console.log("Continuing without 3D visualization");
   }
-
-  root.container.addEventListener("mousemove", function (e) {
-    handleInteraction(e.clientX, e.clientY);
-  });
-
-  // Touch support for mobile
-  root.container.addEventListener(
-    "touchmove",
-    function (e) {
-      e.preventDefault();
-      if (e.touches.length > 0) {
-        handleInteraction(e.touches[0].clientX, e.touches[0].clientY);
-      }
-    },
-    { passive: false }
-  );
-
-  root.container.addEventListener(
-    "touchstart",
-    function (e) {
-      e.preventDefault();
-      if (e.touches.length > 0) {
-        handleInteraction(e.touches[0].clientX, e.touches[0].clientY);
-      }
-    },
-    { passive: false }
-  );
-
-  // Keyboard controls (P = pause, C = camera controls)
-  window.addEventListener("keyup", function (e) {
-    if (e.key === "p" || e.key === "P") {
-      paused = !paused;
-    }
-    if (e.key === "c" || e.key === "C") {
-      if (root.controls) {
-        root.controls.enabled = !root.controls.enabled;
-      } else {
-        root.createOrbitControls();
-      }
-    }
-  });
-
-  // dat.gui - DISABLED (library not included)
-  // var g = new dat.GUI();
-  // var colorProxy = {};
-
-  // Object.defineProperty(colorProxy, "diffuse", {
-  //   get: function () {
-  //     return "#" + animation.material.uniforms["diffuse"].value.getHexString();
-  //   },
-  //   set: function (v) {
-  //     animation.material.uniforms["diffuse"].value.set(v);
-  //   },
-  // });
-
-  // g.addColor(colorProxy, "diffuse").name("color");
-  // g.add(bloomPass.copyUniforms.opacity, "value").name("bloom str");
 }
 
 ////////////////////
@@ -1658,11 +1703,51 @@ function THREERoot(params) {
   this.resizeCallbacks = [];
   this.objects = {};
 
-  // renderer
-  this.renderer = new THREE.WebGLRenderer({
-    antialias: params.antialias,
-    alpha: true, // Enable transparency
-  });
+  // renderer - with fallback for WebGL failures
+  let rendererCreated = false;
+  try {
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: params.antialias,
+      alpha: true, // Enable transparency
+      powerPreference: "high-performance", // Request high-performance GPU
+      failIfMajorPerformanceCaveat: false, // Don't fail on performance issues
+    });
+    rendererCreated = true;
+  } catch (e) {
+    console.error("WebGL renderer creation failed:", e);
+    // Try with minimal settings
+    try {
+      this.renderer = new THREE.WebGLRenderer({
+        antialias: false,
+        alpha: true,
+        powerPreference: "low-power",
+      });
+      rendererCreated = true;
+      console.warn("WebGL renderer created with fallback settings");
+    } catch (e2) {
+      console.error("WebGL renderer creation failed even with fallback:", e2);
+      // Create a canvas fallback
+      this.renderer = {
+        domElement: document.createElement("canvas"),
+        setPixelRatio: function () {},
+        setClearColor: function () {},
+        setSize: function () {},
+        render: function () {},
+        getSize: function () {
+          return { width: window.innerWidth, height: window.innerHeight };
+        },
+        getPixelRatio: function () {
+          return 1;
+        },
+      };
+      console.warn("Using canvas fallback instead of WebGL");
+    }
+  }
+
+  if (!rendererCreated) {
+    console.warn("WebGL not available - using fallback renderer");
+  }
+
   // Half-resolution rendering for pixelated effect (50% of normal resolution)
   // This reduces pixel count by 75% for massive performance gain
   this.renderer.setPixelRatio(params.pixelRatio * 0.5);

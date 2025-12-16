@@ -268,7 +268,7 @@ function asciiLoop() {
 
     // Process in larger blocks for performance
     asciiCtx.fillStyle = "#8000ffff";
-    asciiCtx.font = "regular 12px monospace";
+    asciiCtx.font = "thin 16px monospace";
 
     let charCount = 0;
 
@@ -296,7 +296,7 @@ function asciiLoop() {
             const r = data[idx] || 0;
             const g = data[idx + 1] || 0;
             const b = data[idx + 2] || 0;
-            brightness += (r + g + b) / 3;
+            brightness += (r + g + b) / 3.2;
             count++;
           }
         }

@@ -44,9 +44,13 @@ function analyzeBass(dataArray) {
 
 /**
  * Analyze drums/kick frequencies (20-200Hz range)
- * NOT throttled - needs every frame for kick detection
+ * Throttled to 40fps for efficiency
  */
 function analyzeDrums(dataArray) {
+  if (audioAnalysisFrameCount % 1.5 !== 0) {
+    return lastDrumsResult; // Return cached result on non-analysis frames
+  }
+
   if (!dataArray || dataArray.length === 0) return 0;
 
   // Drums/kicks are in very low frequencies
@@ -64,10 +68,10 @@ function analyzeDrums(dataArray) {
 
 /**
  * Analyze instruments level (mid-high frequencies)
- * Throttled to 30fps for efficiency
+ * Throttled to 24fps for efficiency
  */
 function analyzeInstruments(dataArray) {
-  if (audioAnalysisFrameCount % 2 !== 0) {
+  if (audioAnalysisFrameCount % 2.5 !== 0) {
     return lastInstrumentsResult; // Return cached result on non-analysis frames
   }
 
@@ -111,7 +115,6 @@ self.onmessage = (event) => {
     drums,
     instruments,
     isKick,
-    frameCount
+    frameCount,
   });
 };
-

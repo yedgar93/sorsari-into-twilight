@@ -327,6 +327,9 @@
     const threeContainerBtn = document.getElementById("toggle-three-container");
     const modelsBtn = document.getElementById("toggle-models");
     const visualizerBtn = document.getElementById("toggle-visualizer");
+    const bloomBtn = document.getElementById("toggle-bloom");
+    const radialBlurSlider = document.getElementById("radial-blur-slider");
+    const radialBlurValue = document.getElementById("radial-blur-value");
     const starsCanvas = document.getElementById("stars-canvas");
     const threeContainerEl = document.getElementById("three-container");
     const modelViewer = document.getElementById("model-viewer");
@@ -428,6 +431,48 @@
     } else {
       console.log(
         "[Debug] Could not attach visualizer toggle - missing elements"
+      );
+    }
+
+    // Bloom toggle
+    let bloomEnabled = true;
+    if (bloomBtn) {
+      console.log("[Debug] Attaching bloom toggle");
+      bloomBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        console.log("[Debug] Bloom toggle clicked");
+        if (window.SORSARI && window.SORSARI.bloomPass) {
+          bloomEnabled = !bloomEnabled;
+          window.SORSARI.bloomPass.enabled = bloomEnabled;
+          bloomBtn.textContent = bloomEnabled ? "Bloom ✓" : "Bloom ✗";
+          bloomBtn.style.opacity = bloomEnabled ? "1" : "0.5";
+          console.log("Bloom:", bloomEnabled ? "enabled" : "disabled");
+        } else {
+          console.log("[Debug] Bloom pass not available");
+        }
+      });
+    } else {
+      console.log("[Debug] Could not attach bloom toggle - missing element");
+    }
+
+    // Radial blur strength slider
+    if (radialBlurSlider && radialBlurValue) {
+      console.log("[Debug] Attaching radial blur slider");
+      radialBlurSlider.addEventListener("input", function (e) {
+        e.stopPropagation();
+        const strength = parseFloat(this.value);
+        radialBlurValue.textContent = strength.toFixed(1);
+        console.log("[Debug] Radial blur strength changed to:", strength);
+        if (window.SORSARI && window.SORSARI.radialBlurPass) {
+          window.SORSARI.radialBlurPass.uniforms.strength.value = strength;
+          console.log("Radial blur strength:", strength);
+        } else {
+          console.log("[Debug] Radial blur pass not available");
+        }
+      });
+    } else {
+      console.log(
+        "[Debug] Could not attach radial blur slider - missing elements"
       );
     }
   }
