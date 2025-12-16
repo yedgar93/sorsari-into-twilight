@@ -9,6 +9,12 @@
 (function () {
   "use strict";
 
+  // Detect mobile devices (same as in script.js)
+  const isMobile =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+
   const starsCanvas = document.getElementById("stars-canvas");
   const starsCanvasWrapper = document.getElementById("stars-canvas-wrapper");
   // Enable alpha channel for hyperspace layer (needs transparency for blue stars)
@@ -70,38 +76,72 @@
   const blurOutDuration = blurOutEnd - blurOutStart;
 
   // Create star layers with different speeds for parallax and depth-of-field
-  const starLayers = [
-    {
-      stars: [],
-      count: 50,
-      speed: 0.0125,
-      size: 0.5,
-      opacity: 0.3,
-      depth: 3,
-      blur: 0.0,
-      scale: 0.7,
-    }, // Far layer (sharp)
-    {
-      stars: [],
-      count: 35,
-      speed: 0.0215,
-      size: 0.75,
-      opacity: 0.5,
-      depth: 2,
-      blur: 2.0,
-      scale: 0.85,
-    }, // Mid layer (blurred for depth effect)
-    {
-      stars: [],
-      count: 20,
-      speed: 0.0313,
-      size: 1,
-      opacity: 0.8,
-      depth: 1,
-      blur: 0.0,
-      scale: 1.0,
-    }, // Close layer (sharp)
-  ];
+  // Reduce star count on mobile for better performance (105 → 70 stars)
+  const starLayers = isMobile
+    ? [
+        {
+          stars: [],
+          count: 35,
+          speed: 0.0125,
+          size: 0.5,
+          opacity: 0.3,
+          depth: 3,
+          blur: 0.0,
+          scale: 0.7,
+        }, // Far layer (sharp)
+        {
+          stars: [],
+          count: 25,
+          speed: 0.0215,
+          size: 0.75,
+          opacity: 0.5,
+          depth: 2,
+          blur: 2.0,
+          scale: 0.85,
+        }, // Mid layer (blurred for depth effect)
+        {
+          stars: [],
+          count: 10,
+          speed: 0.0313,
+          size: 1,
+          opacity: 0.8,
+          depth: 1,
+          blur: 0.0,
+          scale: 1.0,
+        }, // Close layer (sharp)
+      ]
+    : [
+        {
+          stars: [],
+          count: 50,
+          speed: 0.0125,
+          size: 0.5,
+          opacity: 0.3,
+          depth: 3,
+          blur: 0.0,
+          scale: 0.7,
+        }, // Far layer (sharp)
+        {
+          stars: [],
+          count: 35,
+          speed: 0.0215,
+          size: 0.75,
+          opacity: 0.5,
+          depth: 2,
+          blur: 2.0,
+          scale: 0.85,
+        }, // Mid layer (blurred for depth effect)
+        {
+          stars: [],
+          count: 20,
+          speed: 0.0313,
+          size: 1,
+          opacity: 0.8,
+          depth: 1,
+          blur: 0.0,
+          scale: 1.0,
+        }, // Close layer (sharp)
+      ];
 
   // Drop timing
   const firstDropTime = 31.85;
