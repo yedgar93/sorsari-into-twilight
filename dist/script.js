@@ -29,7 +29,7 @@ const CONFIG = {
 
   // Global FPS controller - scales down rendering frequency
   // 1.0 = 60fps, 0.5 = 30fps, 0.33 = 20fps, 0.25 = 15fps
-  fpsScale: 0.77,
+  fpsScale: isMobile ? 0.44 : 0.77,
 };
 
 // Audio setup
@@ -600,9 +600,12 @@ function init() {
     });
 
     // post processing - define early so we can use in update callback
-    // Reduce bloom quality on mobile for better performance
+    // Disable bloom on mobile entirely for better performance
     // Higher threshold = only bright parts bloom (only on bass hits)
     const bloomPass = new THREE.BloomPass(2.0, 25, 4, 256); // Threshold 2.0 = only bloom on peaks, 256 resolution
+    if (isMobile) {
+      bloomPass.enabled = false;
+    }
 
     // Radial blur shader for atmospheric background effect
     const RadialBlurShader = {
@@ -1376,7 +1379,8 @@ function init() {
       }
 
       // Apply chromatic aberration to model viewer (two phases)
-      if (modelViewerWrapper) {
+      // Disabled on mobile for better performance
+      if (modelViewerWrapper && !isMobile) {
         let chromaticAmount = 0;
 
         // Phase 1: First drop (0:31.85 to 1:03) - STOP at 1:03

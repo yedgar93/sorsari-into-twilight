@@ -542,6 +542,7 @@
     }
 
     if (
+      !isMobile &&
       chromaticAberrationEnabled &&
       currentTime >= chromaticAberrationStartTime &&
       currentTime < chromaticAberrationEndTime
@@ -555,7 +556,11 @@
         chromaticAberrationMaxOffset *
         chromaticAberrationIntensity *
         chromaticIntensityMultiplier;
-    } else if (chromaticAberrationEnabled && currentTime >= invertBackTime) {
+    } else if (
+      !isMobile &&
+      chromaticAberrationEnabled &&
+      currentTime >= invertBackTime
+    ) {
       // Rotating effect from 2:40 onwards (with zoom and rotation)
       const rotationProgress =
         (currentTime - invertBackTime) / (zoomInEndTime - invertBackTime);
