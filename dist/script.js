@@ -17,6 +17,122 @@ const isMobile =
     navigator.userAgent
   );
 
+// =====================
+// Low-Power Failsafe System
+// =====================
+// Parachute that opens if device is struggling
+let lowPowerFailsafeActive = false;
+let lowPowerFailsafeTriggered = false;
+let fpsDropFrameCount = 0;
+const fpsDropThreshold = 22; // FPS below this triggers failsafe
+const fpsDropDuration = 2000; // Must stay below threshold for 2 seconds
+
+// References to be set during init
+let failsafeThreeContainer = null;
+let failsafeThreeBlurWrapper = null;
+let failsafeRoot = null;
+let failsafeBloomPass = null;
+let failsafeRadialBlurPass = null;
+
+// Global pause state for failsafe
+let globalPauseState = { paused: false };
+
+// Check for low-power conditions
+function checkLowPowerConditions() {
+  // Check 1: Data Saver mode
+  if (navigator.connection?.saveData === true) {
+    console.warn("[Low-Power Failsafe] Data Saver mode detected");
+    return true;
+  }
+
+  // Check 2: Battery API (if available)
+  if (navigator.getBattery) {
+    navigator.getBattery().then((battery) => {
+      if (battery.level < 0.15) {
+        console.warn("[Low-Power Failsafe] Battery < 15%");
+        return true;
+      }
+    });
+  }
+
+  return false;
+}
+
+// Monitor FPS for sustained drops
+function monitorFPSForFailsafe(currentFPS) {
+  if (currentFPS < fpsDropThreshold) {
+    fpsDropFrameCount++;
+    // If FPS has been low for 2+ seconds, trigger failsafe
+    if (fpsDropFrameCount > (fpsDropThreshold * fpsDropDuration) / 1000) {
+      console.warn(
+        `[Low-Power Failsafe] FPS dropped below ${fpsDropThreshold} for >2 seconds`
+      );
+      return true;
+    }
+  } else {
+    // Reset counter if FPS recovers
+    fpsDropFrameCount = 0;
+  }
+  return false;
+}
+
+// Trigger low-power failsafe
+function triggerLowPowerFailsafe() {
+  if (lowPowerFailsafeTriggered) return; // Only trigger once
+  lowPowerFailsafeTriggered = true;
+  lowPowerFailsafeActive = true;
+
+  console.warn("[Low-Power Failsafe] ACTIVATED - Disabling Three.js");
+  console.log(
+    "[Low-Power Failsafe] failsafeThreeContainer:",
+    failsafeThreeContainer
+  );
+  console.log("[Low-Power Failsafe] failsafeRoot:", failsafeRoot);
+
+  // Fade out Three.js canvas (fade the wrapper which contains the container)
+  if (failsafeThreeBlurWrapper) {
+    console.log("[Low-Power Failsafe] Setting wrapper opacity to 0");
+    failsafeThreeBlurWrapper.style.transition = "opacity 1s ease-out";
+    failsafeThreeBlurWrapper.style.opacity = "0";
+
+    // After fade completes, dispose renderer
+    setTimeout(() => {
+      if (failsafeRoot && failsafeRoot.renderer) {
+        failsafeRoot.renderer.dispose();
+        console.log("[Low-Power Failsafe] Renderer disposed");
+      }
+
+      if (failsafeRoot && failsafeRoot.scene) {
+        // Dispose all geometries and materials in scene
+        failsafeRoot.scene.traverse((object) => {
+          if (object.geometry) {
+            object.geometry.dispose();
+          }
+          if (object.material) {
+            if (Array.isArray(object.material)) {
+              object.material.forEach((mat) => mat.dispose());
+            } else {
+              object.material.dispose();
+            }
+          }
+        });
+        console.log("[Low-Power Failsafe] Scene disposed");
+      }
+
+      // Disable post-processing passes
+      if (failsafeBloomPass) failsafeBloomPass.enabled = false;
+      if (failsafeRadialBlurPass) failsafeRadialBlurPass.enabled = false;
+
+      // Stop the animation loop by setting global pause state
+      globalPauseState.paused = true;
+      console.log("[Low-Power Failsafe] Animation loop paused");
+
+      console.log("[Low-Power Failsafe] Three.js fully disabled");
+      console.log("[Low-Power Failsafe] 2D canvas + CRT + audio still running");
+    }, 1000);
+  }
+}
+
 const CONFIG = {
   pointCount: isMobile ? 400 : 3000, // Optimized for mobile - 400 points for better performance
   extrudeAmount: 2.0,
@@ -77,7 +193,7 @@ const kickThreshold = 0.68; // Threshold for kick detection (0-1)
 const kickTimingOffset = 0.0; // Timing offset for kick flash in seconds (positive = earlier, negative = later)
 let colorFlashAmount = 0; // Current flash amount (0-1)
 const defaultColor = new THREE.Color(0x362f99); // Default purple/blue
-const kickColor = new THREE.Color(0x766391); // Pink color for kicks
+const kickColor = new THREE.Color(0x80558a); // Bright pink color for kicks
 const cachedInterpolatedColor = new THREE.Color(); // Reusable color for interpolation (avoids allocation every frame)
 
 // Audio timing offset (in seconds) - adjust if visualizer is ahead/behind music
@@ -399,6 +515,29 @@ SORSARI.getInstrumentsLevel = getInstrumentsLevelThrottled;
 // Audio analysis frame counter for worker communication
 let audioAnalysisFrameCount = 0;
 
+// =====================
+// Uniform Dead Zones (Audio-Driven)
+// =====================
+// Prevents shader uniform updates on tiny audio jitter
+// Mobile: aggressive (±0.05), Desktop: loose (±0.02)
+const uniformDeadZones = {
+  bass: isMobile ? 0.05 : 0.02,
+  roughness: isMobile ? 0.05 : 0.02,
+  metalness: isMobile ? 0.05 : 0.02,
+  colorFlash: isMobile ? 0.05 : 0.02,
+  bloom: isMobile ? 0.05 : 0.02,
+};
+
+// Track last uniform values to detect meaningful changes
+let lastUniformValues = {
+  uD: 2.0,
+  uA: 1.0,
+  roughness: 0.5,
+  metalness: 0.3,
+  diffuse: new THREE.Color(0x9b111e),
+  bloom: 0.0,
+};
+
 // Send audio data to worker for analysis
 function sendAudioDataToWorker() {
   if (!audioWorker) return;
@@ -622,7 +761,8 @@ function init() {
     root.add(animation);
 
     // interactive
-    let paused = false;
+    // Use global pause state so failsafe can pause the animation loop
+    // let paused = false; // Removed - using globalPauseState instead
 
     // Page visibility detection listener
     document.addEventListener("visibilitychange", function () {
@@ -695,6 +835,10 @@ function init() {
     const copyPass = new THREE.ShaderPass(THREE.CopyShader);
     root.initPostProcessing([bloomPass, radialBlurPass, copyPass]);
 
+    // Set failsafe references for post-processing passes
+    failsafeBloomPass = bloomPass;
+    failsafeRadialBlurPass = radialBlurPass;
+
     // Expose bloom and radial blur passes for debug controls
     window.SORSARI = window.SORSARI || {};
     window.SORSARI.bloomPass = bloomPass;
@@ -738,6 +882,11 @@ function init() {
     let invertFilterRemoved = false;
     const threeContainer = document.getElementById("three-container");
     const threeBlurWrapper = document.getElementById("three-blur-wrapper");
+
+    // Set failsafe references
+    failsafeThreeContainer = threeContainer;
+    failsafeThreeBlurWrapper = threeBlurWrapper;
+    failsafeRoot = root;
 
     // Triangle canvas fade out timing
     const triangleFadeOutStart = 185; // 3:05
@@ -854,7 +1003,7 @@ function init() {
     const ghostMirrorChance = 0.003; // ~0.3% chance per frame (rare)
 
     root.addUpdateCallback(function () {
-      if (paused) return;
+      if (globalPauseState.paused) return;
 
       animation.time += 1 / 30;
       frameCount++;
@@ -1188,18 +1337,42 @@ function init() {
         animation.rotation.z = rotationAngle; // Rotate around Z axis
       }
 
-      // Make the animation react to bass
+      // Make the animation react to bass (with dead zones to reduce GPU state changes)
       // uD controls displacement/extrusion - pulsate with bass
-      animation.material.uniforms["uD"].value = 2.0 + bass * 24.0;
+      const newUD = 2.0 + bass * 24.0;
+      if (Math.abs(newUD - lastUniformValues.uD) > uniformDeadZones.bass) {
+        animation.material.uniforms["uD"].value = newUD;
+        lastUniformValues.uD = newUD;
+      }
 
       // uA controls animation amplitude - increase with bass
-      animation.material.uniforms["uA"].value = 1.0 + bass * 6.0;
+      const newUA = 1.0 + bass * 6.0;
+      if (Math.abs(newUA - lastUniformValues.uA) > uniformDeadZones.bass) {
+        animation.material.uniforms["uA"].value = newUA;
+        lastUniformValues.uA = newUA;
+      }
 
-      // Make it more metallic and less rough when bass hits
-      animation.material.uniforms["roughness"].value = 0.5 - bass * 0.3;
-      animation.material.uniforms["metalness"].value = 0.3 + bass * 0.7;
+      // Make it more metallic and less rough when bass hits (with dead zones)
+      const newRoughness = 0.5 - bass * 0.3;
+      if (
+        Math.abs(newRoughness - lastUniformValues.roughness) >
+        uniformDeadZones.roughness
+      ) {
+        animation.material.uniforms["roughness"].value = newRoughness;
+        lastUniformValues.roughness = newRoughness;
+      }
+
+      const newMetalness = 0.3 + bass * 0.7;
+      if (
+        Math.abs(newMetalness - lastUniformValues.metalness) >
+        uniformDeadZones.metalness
+      ) {
+        animation.material.uniforms["metalness"].value = newMetalness;
+        lastUniformValues.metalness = newMetalness;
+      }
 
       // Kick detection and color flash (using drums track) - throttled to every 2 frames
+      // Disabled on mobile to save performance (main track detection is too noisy)
       // Kill kick detection at 3:10 to save performance
       if (currentTime >= kickDetectionKillTime) {
         if (!kickDetectionKilled) {
@@ -1208,7 +1381,7 @@ function init() {
           animation.material.uniforms["diffuse"].value.copy(defaultColor);
           colorFlashAmount = 0.0;
         }
-      } else if (frameCount % 2 === 0) {
+      } else if (!isMobile && frameCount % 2 === 0) {
         const drumsBass = getDrumsBasThrottled();
         if (drumsBass > kickThreshold) {
           // Kick detected - flash to pink
@@ -1218,16 +1391,23 @@ function init() {
           colorFlashAmount = Math.max(0.0, colorFlashAmount - 0.05);
         }
 
-        // Interpolate between default color and kick color (reuse cached color object)
-        cachedInterpolatedColor
-          .copy(defaultColor)
-          .lerp(kickColor, colorFlashAmount);
-        animation.material.uniforms["diffuse"].value.copy(
+        // Only update color if change exceeds dead zone
+        if (
+          Math.abs(colorFlashAmount - lastUniformValues.diffuse.getHSL({}).l) >
+          uniformDeadZones.colorFlash
+        ) {
+          // Interpolate between default color and kick color (reuse cached color object)
           cachedInterpolatedColor
-        );
+            .copy(defaultColor)
+            .lerp(kickColor, colorFlashAmount);
+          animation.material.uniforms["diffuse"].value.copy(
+            cachedInterpolatedColor
+          );
+          lastUniformValues.diffuse.copy(cachedInterpolatedColor);
+        }
       }
 
-      // Update bloom intensity - throttled to every 3 frames
+      // Update bloom intensity - throttled to every 3 frames (with dead zones)
       // Kill bloom at 3:10 to save performance
       if (currentTime >= bloomKillTime) {
         if (!bloomKilled) {
@@ -1240,7 +1420,14 @@ function init() {
           // Scale bloom intensity based on how much bass exceeds threshold
           bloomIntensity = (bass - 0.5) * 2.0; // Amplify the bloom on peaks
         }
-        bloomPass.copyUniforms["opacity"].value = bloomIntensity;
+        // Only update bloom if change exceeds dead zone
+        if (
+          Math.abs(bloomIntensity - lastUniformValues.bloom) >
+          uniformDeadZones.bloom
+        ) {
+          bloomPass.copyUniforms["opacity"].value = bloomIntensity;
+          lastUniformValues.bloom = bloomIntensity;
+        }
       }
 
       // Screen shake on drops
@@ -1597,7 +1784,7 @@ function init() {
         if (!threeRenderingKilled) {
           threeRenderingKilled = true;
           // Stop the update callback to save performance
-          paused = true;
+          globalPauseState.paused = true;
           // Disable expensive post-processing passes
           bloomPass.enabled = false;
           radialBlurPass.enabled = false;
@@ -1635,7 +1822,7 @@ function init() {
 
     // Handle both mouse and touch events (disabled when audio is reactive)
     function handleInteraction(clientX, clientY) {
-      if (paused || audioReactive) return; // Don't override audio reactivity
+      if (globalPauseState.paused || audioReactive) return; // Don't override audio reactivity
 
       const px = clientX / window.innerWidth;
       const py = clientY / window.innerHeight;
@@ -1679,7 +1866,7 @@ function init() {
     if (!isMobile) {
       window.addEventListener("keyup", function (e) {
         if (e.key === "p" || e.key === "P") {
-          paused = !paused;
+          globalPauseState.paused = !globalPauseState.paused;
         }
         if (e.key === "c" || e.key === "C") {
           if (root.controls) {
@@ -2006,6 +2193,22 @@ THREERoot.prototype = {
     // Update debug display with frame time
     if (window.updateFrameTime) {
       window.updateFrameTime(frameTime);
+    }
+
+    // Check for low-power failsafe conditions
+    if (!lowPowerFailsafeActive) {
+      // Check static conditions (data saver, battery)
+      if (checkLowPowerConditions()) {
+        triggerLowPowerFailsafe();
+      }
+
+      // Monitor FPS drops on mobile
+      if (isMobile) {
+        const currentFPS = 1000 / frameTime;
+        if (monitorFPSForFailsafe(currentFPS)) {
+          triggerLowPowerFailsafe();
+        }
+      }
     }
 
     if (isMobile) {

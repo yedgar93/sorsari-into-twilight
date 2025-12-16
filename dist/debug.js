@@ -104,6 +104,19 @@
     });
   });
 
+  // Failsafe trigger button
+  const failsafeBtn = document.getElementById("trigger-failsafe-btn");
+  if (failsafeBtn) {
+    failsafeBtn.addEventListener("click", function () {
+      if (typeof triggerLowPowerFailsafe === "function") {
+        console.log("[Debug] Manually triggering Low-Power Failsafe");
+        triggerLowPowerFailsafe();
+      } else {
+        console.error("[Debug] triggerLowPowerFailsafe function not found");
+      }
+    });
+  }
+
   let isDragging = false;
   let currentX;
   let currentY;
