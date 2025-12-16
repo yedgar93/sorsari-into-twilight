@@ -29,7 +29,7 @@ const CONFIG = {
 
   // Global FPS controller - scales down rendering frequency
   // 1.0 = 60fps, 0.5 = 30fps, 0.33 = 20fps, 0.25 = 15fps
-  fpsScale: isMobile ? 0.44 : 0.77,
+  fpsScale: isMobile ? 0.5 : 0.77,
 };
 
 // Audio setup
@@ -1570,8 +1570,9 @@ function init() {
       }
 
       // Speaker cone effect - bass-reactive pulsing
-      const throttleInterval = isMobile ? 6 : 2; // Update every 6 frames on mobile, 2 on desktop
-      if (frameCount % throttleInterval === 0) {
+      // DISABLED FOR TESTING - checking if this is thermal culprit
+      const throttleInterval = isMobile ? 0 : 2; // Disabled on mobile for testing
+      if (throttleInterval > 0 && frameCount % throttleInterval === 0) {
         const speakerPush = bass * 8.0; // how much to push in/out
 
         // Loop through all vertices for speaker cone effect
@@ -1940,8 +1941,25 @@ THREERoot.prototype = {
       return;
     }
 
-    this.update();
-    this.render();
+    // Update callback throttling - separate from render throttling
+    // On mobile, only update every other frame (30fps instead of 60fps)
+    const updateFpsScale = isMobile ? 0.5 : 1.0; // 30fps on mobile, 60fps on desktop
+    const updateFrameSkipInterval = Math.max(1, Math.round(1 / updateFpsScale));
+    if (reducedFrameCounter % updateFrameSkipInterval === 0) {
+      this.update();
+    }
+
+    // Three.js canvas rendering - can be throttled separately on mobile
+    // trianglesFpsScale: 1.0 = 60fps, 0.5 = 30fps, 0.33 = 20fps, 0.25 = 15fps
+    const trianglesFpsScale = isMobile ? 0.5 : 1.0; // 30fps on mobile, 60fps on desktop
+    const trianglesFrameSkipInterval = Math.max(
+      1,
+      Math.round(1 / trianglesFpsScale)
+    );
+    if (reducedFrameCounter % trianglesFrameSkipInterval === 0) {
+      this.render();
+    }
+
     requestAnimationFrame(this.tick);
   },
   update: function () {
