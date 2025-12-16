@@ -615,15 +615,28 @@
     }
 
     // Get instruments level for star pulsing
-    // Kill star pulsing at 3:26 to save performance
+    // Disabled on mobile to save performance
+    // Kill star pulsing at 3:26 to save performance (desktop only)
     let instrumentsLevel = 0;
-    if (currentTime < starPulsingKillTime) {
+    if (!isMobile && currentTime < starPulsingKillTime) {
       instrumentsLevel = SORSARI.getInstrumentsLevel
         ? SORSARI.getInstrumentsLevel()
         : 0;
-    } else if (!starPulsingKilled) {
+    } else if (
+      !isMobile &&
+      !starPulsingKilled &&
+      currentTime >= starPulsingKillTime
+    ) {
       starPulsingKilled = true;
       // Reset all star pulse amounts
+      starLayers.forEach((layer) => {
+        layer.stars.forEach((star) => {
+          star.pulseAmount = 0;
+        });
+      });
+    } else if (isMobile && !starPulsingKilled) {
+      // On mobile, disable pulsing entirely
+      starPulsingKilled = true;
       starLayers.forEach((layer) => {
         layer.stars.forEach((star) => {
           star.pulseAmount = 0;

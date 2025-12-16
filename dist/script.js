@@ -29,8 +29,23 @@ const CONFIG = {
 
   // Global FPS controller - scales down rendering frequency
   // 1.0 = 60fps, 0.5 = 30fps, 0.33 = 20fps, 0.25 = 15fps
-  fpsScale: isMobile ? 0.5 : 0.77,
+  // Mobile starts at 60fps but will throttle down based on frame time
+  fpsScale: isMobile ? 1.0 : 0.77,
 };
+
+// =====================
+// Adaptive FPS Throttling (Mobile Only)
+// =====================
+// Monitors frame time and throttles aggressively if performance degrades
+let adaptiveFpsScale = isMobile ? 0.75 : CONFIG.fpsScale; // Start at 45fps on mobile instead of 60fps
+let frameTimeHistory = [];
+const frameTimeHistorySize = 10; // Average over 10 frames
+const frameTimeThresholdHigh = 28; // Throttle if avg frame time > 28ms (more aggressive)
+const frameTimeThresholdLow = 12; // Resume if avg frame time < 12ms (stricter recovery)
+const throttleDownFactor = 0.75; // Reduce by 25% when throttling (more aggressive)
+const throttleUpFactor = 1.03; // Increase by 3% when recovering (slower recovery)
+const minFpsScale = 0.33; // Don't go below 20fps
+const maxFpsScale = 1.0; // Don't go above 60fps
 
 // Audio setup
 let audioContext;
@@ -161,19 +176,23 @@ function initAudio() {
   const bufferLength = analyser.frequencyBinCount;
   dataArray = new Uint8Array(bufferLength);
 
-  // Drums analyser for kick detection
-  drumsAnalyser = audioContext.createAnalyser();
-  drumsAnalyser.fftSize = isMobile ? 64 : 128;
-  drumsAnalyser.smoothingTimeConstant = 0.8;
-  const drumsBufferLength = drumsAnalyser.frequencyBinCount;
-  drumsDataArray = new Uint8Array(drumsBufferLength);
+  // Drums analyser for kick detection (desktop only - mobile uses main track)
+  if (!isMobile) {
+    drumsAnalyser = audioContext.createAnalyser();
+    drumsAnalyser.fftSize = 128;
+    drumsAnalyser.smoothingTimeConstant = 0.8;
+    const drumsBufferLength = drumsAnalyser.frequencyBinCount;
+    drumsDataArray = new Uint8Array(drumsBufferLength);
+  }
 
-  // Instruments analyser for star pulsing
-  instrumentsAnalyser = audioContext.createAnalyser();
-  instrumentsAnalyser.fftSize = isMobile ? 64 : 128;
-  instrumentsAnalyser.smoothingTimeConstant = 0.8;
-  const instrumentsBufferLength = instrumentsAnalyser.frequencyBinCount;
-  instrumentsDataArray = new Uint8Array(instrumentsBufferLength);
+  // Instruments analyser for star pulsing (desktop only - mobile uses main track)
+  if (!isMobile) {
+    instrumentsAnalyser = audioContext.createAnalyser();
+    instrumentsAnalyser.fftSize = 128;
+    instrumentsAnalyser.smoothingTimeConstant = 0.8;
+    const instrumentsBufferLength = instrumentsAnalyser.frequencyBinCount;
+    instrumentsDataArray = new Uint8Array(instrumentsBufferLength);
+  }
 
   // Main audio track
   audioElement = new Audio("sorsari - into twilight.wav");
@@ -190,21 +209,26 @@ function initAudio() {
   limiter.connect(analyser);
   analyser.connect(audioContext.destination);
 
-  // Drums track for kick detection
-  drumsElement = new Audio("stems/drums.wav");
-  drumsElement.loop = false; // Don't loop
-  drumsElement.crossOrigin = "anonymous";
-  drumsSource = audioContext.createMediaElementSource(drumsElement);
-  drumsSource.connect(drumsAnalyser);
-  console.log("Drums track loaded for kick detection");
+  // Drums track for kick detection (desktop only)
+  if (!isMobile) {
+    drumsElement = new Audio("stems/drums.wav");
+    drumsElement.loop = false; // Don't loop
+    drumsElement.crossOrigin = "anonymous";
+    drumsSource = audioContext.createMediaElementSource(drumsElement);
+    drumsSource.connect(drumsAnalyser);
+    console.log("Drums track loaded for kick detection");
+  }
 
-  // Instruments track for star pulsing
-  instrumentsElement = new Audio("stems/instruments.wav");
-  instrumentsElement.loop = false; // Don't loop
-  instrumentsElement.crossOrigin = "anonymous";
-  instrumentsSource = audioContext.createMediaElementSource(instrumentsElement);
-  instrumentsSource.connect(instrumentsAnalyser);
-  console.log("Instruments track loaded for star pulsing");
+  // Instruments track for star pulsing (desktop only)
+  if (!isMobile) {
+    instrumentsElement = new Audio("stems/instruments.wav");
+    instrumentsElement.loop = false; // Don't loop
+    instrumentsElement.crossOrigin = "anonymous";
+    instrumentsSource =
+      audioContext.createMediaElementSource(instrumentsElement);
+    instrumentsSource.connect(instrumentsAnalyser);
+    console.log("Instruments track loaded for star pulsing");
+  }
 
   // Sync all tracks - play them together
   function playAllTracks() {
@@ -214,11 +238,14 @@ function initAudio() {
 
     // Start all audio tracks
     const playPromises = [audioElement.play()];
-    if (drumsElement) {
-      playPromises.push(drumsElement.play());
-    }
-    if (instrumentsElement) {
-      playPromises.push(instrumentsElement.play());
+    // Only play stem tracks on desktop
+    if (!isMobile) {
+      if (drumsElement) {
+        playPromises.push(drumsElement.play());
+      }
+      if (instrumentsElement) {
+        playPromises.push(instrumentsElement.play());
+      }
     }
 
     Promise.all(playPromises)
@@ -233,8 +260,8 @@ function initAudio() {
         }
         console.log("All tracks playing in sync:", {
           main: true,
-          drums: !!drumsElement,
-          instruments: !!instrumentsElement,
+          drums: !isMobile && !!drumsElement,
+          instruments: !isMobile && !!instrumentsElement,
         });
       })
       .catch(function (error) {
@@ -378,10 +405,18 @@ function sendAudioDataToWorker() {
 
   audioAnalysisFrameCount++;
 
-  // Get frequency data from analysers
+  // Get frequency data from main analyser (always available)
   analyser.getByteFrequencyData(dataArray);
-  drumsAnalyser.getByteFrequencyData(drumsDataArray);
-  instrumentsAnalyser.getByteFrequencyData(instrumentsDataArray);
+
+  // On desktop, also get data from stem analysers
+  if (!isMobile) {
+    drumsAnalyser.getByteFrequencyData(drumsDataArray);
+    instrumentsAnalyser.getByteFrequencyData(instrumentsDataArray);
+  } else {
+    // On mobile, use main track data for all analysis
+    drumsDataArray = dataArray;
+    instrumentsDataArray = dataArray;
+  }
 
   // Send to worker for analysis
   audioWorker.postMessage({
@@ -1640,18 +1675,21 @@ function init() {
     );
 
     // Keyboard controls (P = pause, C = camera controls)
-    window.addEventListener("keyup", function (e) {
-      if (e.key === "p" || e.key === "P") {
-        paused = !paused;
-      }
-      if (e.key === "c" || e.key === "C") {
-        if (root.controls) {
-          root.controls.enabled = !root.controls.enabled;
-        } else {
-          root.createOrbitControls();
+    // Disabled on mobile to save CPU
+    if (!isMobile) {
+      window.addEventListener("keyup", function (e) {
+        if (e.key === "p" || e.key === "P") {
+          paused = !paused;
         }
-      }
-    });
+        if (e.key === "c" || e.key === "C") {
+          if (root.controls) {
+            root.controls.enabled = !root.controls.enabled;
+          } else {
+            root.createOrbitControls();
+          }
+        }
+      });
+    }
 
     // dat.gui - DISABLED (library not included)
     // var g = new dat.GUI();
@@ -1920,9 +1958,11 @@ THREERoot.prototype = {
     }
   },
   tick: function () {
-    // Global FPS scaling - skip frames based on CONFIG.fpsScale
-    // fpsScale of 1.0 = 60fps, 0.5 = 30fps, 0.33 = 20fps, 0.25 = 15fps
-    const frameSkipInterval = Math.max(1, Math.round(1 / CONFIG.fpsScale));
+    const frameStartTime = performance.now();
+
+    // Use adaptive FPS scale on mobile, CONFIG.fpsScale on desktop
+    const currentFpsScale = isMobile ? adaptiveFpsScale : CONFIG.fpsScale;
+    const frameSkipInterval = Math.max(1, Math.round(1 / currentFpsScale));
     reducedFrameCounter++;
 
     // Page visibility optimization - reduce rendering when tab is hidden
@@ -1942,22 +1982,74 @@ THREERoot.prototype = {
     }
 
     // Update callback throttling - separate from render throttling
-    // On mobile, only update every other frame (30fps instead of 60fps)
-    const updateFpsScale = isMobile ? 0.5 : 1.0; // 30fps on mobile, 60fps on desktop
+    // On mobile, use adaptive FPS scale; on desktop, use full 60fps
+    const updateFpsScale = isMobile ? adaptiveFpsScale : 1.0;
     const updateFrameSkipInterval = Math.max(1, Math.round(1 / updateFpsScale));
     if (reducedFrameCounter % updateFrameSkipInterval === 0) {
       this.update();
     }
 
     // Three.js canvas rendering - can be throttled separately on mobile
-    // trianglesFpsScale: 1.0 = 60fps, 0.5 = 30fps, 0.33 = 20fps, 0.25 = 15fps
-    const trianglesFpsScale = isMobile ? 0.5 : 1.0; // 30fps on mobile, 60fps on desktop
+    const trianglesFpsScale = isMobile ? adaptiveFpsScale : 1.0;
     const trianglesFrameSkipInterval = Math.max(
       1,
       Math.round(1 / trianglesFpsScale)
     );
     if (reducedFrameCounter % trianglesFrameSkipInterval === 0) {
       this.render();
+    }
+
+    // Measure frame time and adjust FPS scale on mobile
+    const frameEndTime = performance.now();
+    const frameTime = frameEndTime - frameStartTime;
+
+    // Update debug display with frame time
+    if (window.updateFrameTime) {
+      window.updateFrameTime(frameTime);
+    }
+
+    if (isMobile) {
+      frameTimeHistory.push(frameTime);
+
+      // Keep history size constant
+      if (frameTimeHistory.length > frameTimeHistorySize) {
+        frameTimeHistory.shift();
+      }
+
+      // Only adjust FPS if we have enough history
+      if (frameTimeHistory.length === frameTimeHistorySize) {
+        const avgFrameTime =
+          frameTimeHistory.reduce((a, b) => a + b, 0) / frameTimeHistorySize;
+
+        // Aggressive throttling if frame time is high
+        if (avgFrameTime > frameTimeThresholdHigh) {
+          adaptiveFpsScale = Math.max(
+            minFpsScale,
+            adaptiveFpsScale * throttleDownFactor
+          );
+          // console.log(
+          //   `[Thermal Throttle] Frame time ${avgFrameTime.toFixed(
+          //     1
+          //   )}ms > ${frameTimeThresholdHigh}ms. FPS Scale: ${adaptiveFpsScale.toFixed(
+          //     2
+          //   )}`
+          // );
+        }
+        // Gradually recover if frame time is low
+        else if (avgFrameTime < frameTimeThresholdLow) {
+          adaptiveFpsScale = Math.min(
+            maxFpsScale,
+            adaptiveFpsScale * throttleUpFactor
+          );
+          // console.log(
+          //   `[Thermal Recover] Frame time ${avgFrameTime.toFixed(
+          //     1
+          //   )}ms < ${frameTimeThresholdLow}ms. FPS Scale: ${adaptiveFpsScale.toFixed(
+          //     2
+          //   )}`
+          // );
+        }
+      }
     }
 
     requestAnimationFrame(this.tick);

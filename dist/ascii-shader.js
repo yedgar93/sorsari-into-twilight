@@ -37,21 +37,28 @@ const MODEL_CHAR_HEIGHT = 12;
 // Pre-calculate character count for brightness mapping
 const CHAR_COUNT = ASCII_CHARS.length - 1;
 
-// Listen for "ascii" keypress
-document.addEventListener("keydown", (e) => {
-  asciiBuffer += e.key.toLowerCase();
-  if (asciiBuffer.length > 5) {
-    asciiBuffer = asciiBuffer.slice(-5);
-  }
-  if (asciiBuffer.includes("ascii")) {
-    toggleASCII();
-    asciiBuffer = "";
-  }
-  clearTimeout(asciiTimeout);
-  asciiTimeout = setTimeout(() => {
-    asciiBuffer = "";
-  }, 2000);
-});
+// Listen for "ascii" keypress (disabled on mobile to save CPU)
+const isMobileASCII =
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+
+if (!isMobileASCII) {
+  document.addEventListener("keydown", (e) => {
+    asciiBuffer += e.key.toLowerCase();
+    if (asciiBuffer.length > 5) {
+      asciiBuffer = asciiBuffer.slice(-5);
+    }
+    if (asciiBuffer.includes("ascii")) {
+      toggleASCII();
+      asciiBuffer = "";
+    }
+    clearTimeout(asciiTimeout);
+    asciiTimeout = setTimeout(() => {
+      asciiBuffer = "";
+    }, 2000);
+  });
+}
 
 function toggleASCII() {
   asciiActive = !asciiActive;

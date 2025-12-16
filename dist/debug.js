@@ -12,24 +12,32 @@
   "use strict";
 
   // Keyboard listener to show debug window when typing "debug"
-  let debugKeyBuffer = "";
-  const debugKeyword = "debug";
+  // Disabled on mobile to save CPU
+  const isMobileDebug =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
 
-  document.addEventListener("keypress", function (e) {
-    debugKeyBuffer += e.key.toLowerCase();
+  if (!isMobileDebug) {
+    let debugKeyBuffer = "";
+    const debugKeyword = "debug";
 
-    // Keep only the last 5 characters
-    if (debugKeyBuffer.length > debugKeyword.length) {
-      debugKeyBuffer = debugKeyBuffer.slice(-debugKeyword.length);
-    }
+    document.addEventListener("keypress", function (e) {
+      debugKeyBuffer += e.key.toLowerCase();
 
-    // Check if "debug" was typed
-    if (debugKeyBuffer === debugKeyword) {
-      const debugWindow = document.getElementById("debug-window");
-      debugWindow.classList.toggle("hidden");
-      debugKeyBuffer = ""; // Reset buffer
-    }
-  });
+      // Keep only the last 5 characters
+      if (debugKeyBuffer.length > debugKeyword.length) {
+        debugKeyBuffer = debugKeyBuffer.slice(-debugKeyword.length);
+      }
+
+      // Check if "debug" was typed
+      if (debugKeyBuffer === debugKeyword) {
+        const debugWindow = document.getElementById("debug-window");
+        debugWindow.classList.toggle("hidden");
+        debugKeyBuffer = ""; // Reset buffer
+      }
+    });
+  }
 
   // Seven-tap gesture to toggle debug window
   let tapTimes = [];
@@ -601,4 +609,130 @@
       btn.style.backgroundColor = "#f44336";
     }
   };
+
+  // =====================
+  // FPS Counter
+  // =====================
+  let frameCount = 0;
+  let lastSecond = Date.now();
+  let currentFps = 60;
+  let lastFrameTime = 0;
+  let longFrameCount = 0;
+  let lastRafTs = performance.now();
+
+  function updateFpsDisplay() {
+    const now = Date.now();
+    frameCount++;
+
+    // Update FPS every second
+    if (now - lastSecond >= 1000) {
+      currentFps = frameCount;
+      frameCount = 0;
+      lastSecond = now;
+    }
+
+    // Update display
+    const fpsDisplay = document.getElementById("fps-display");
+    if (fpsDisplay) {
+      fpsDisplay.textContent = `FPS: ${currentFps} | Frame: ${lastFrameTime.toFixed(
+        1
+      )}ms`;
+    }
+
+    // Track long frames via rAF delta as a fallback when Long Tasks API isn't available
+    const ts = performance.now();
+    const delta = ts - lastRafTs;
+    lastRafTs = ts;
+    if (delta > 50) longFrameCount++;
+
+    requestAnimationFrame(updateFpsDisplay);
+  }
+
+  // Start FPS counter
+  updateFpsDisplay();
+
+  // Expose frame time update function for script.js to call
+  window.updateFrameTime = function (frameTime) {
+    lastFrameTime = frameTime;
+  };
+
+  // =====================
+  // Memory & Long Task Monitors
+  // =====================
+  const memoryEl = document.getElementById("memory-display");
+  const longTaskEl = document.getElementById("longtask-display");
+
+  function bytesToMB(bytes) {
+    return (bytes / (1024 * 1024)).toFixed(1);
+  }
+
+  function updateMemoryDisplay() {
+    if (!memoryEl) return;
+    try {
+      const pm = performance && performance.memory;
+      if (
+        pm &&
+        typeof pm.usedJSHeapSize === "number" &&
+        typeof pm.jsHeapSizeLimit === "number"
+      ) {
+        const used = bytesToMB(pm.usedJSHeapSize);
+        const limit = bytesToMB(pm.jsHeapSizeLimit);
+        const pct = Math.min(
+          100,
+          Math.max(0, (pm.usedJSHeapSize / pm.jsHeapSizeLimit) * 100)
+        ).toFixed(0);
+        memoryEl.textContent = `Memory: ${used} / ${limit} MB (${pct}%)`;
+      } else {
+        const dm =
+          typeof navigator !== "undefined" && navigator.deviceMemory
+            ? ` | Device RAM: ${navigator.deviceMemory} GB`
+            : "";
+        memoryEl.textContent = `Memory: N/A (browser doesn't expose)${dm}`;
+      }
+    } catch (_) {
+      memoryEl.textContent = "Memory: N/A (browser doesn't expose)";
+    }
+  }
+
+  // Update memory every 2 seconds
+  updateMemoryDisplay();
+  setInterval(updateMemoryDisplay, 2000);
+
+  // Long Task API (if available)
+  let supportsLongTasks = false;
+  try {
+    supportsLongTasks =
+      typeof PerformanceObserver !== "undefined" &&
+      PerformanceObserver.supportedEntryTypes &&
+      PerformanceObserver.supportedEntryTypes.includes("longtask");
+  } catch (_) {
+    supportsLongTasks = false;
+  }
+
+  let longTasksThisSecond = 0;
+  if (supportsLongTasks) {
+    try {
+      const observer = new PerformanceObserver((list) => {
+        longTasksThisSecond += list.getEntries().length;
+      });
+      observer.observe({ entryTypes: ["longtask"] });
+    } catch (_) {}
+  }
+
+  // If Long Tasks API is not supported, clarify label for fallback
+  if (!supportsLongTasks && longTaskEl) {
+    longTaskEl.textContent = "Long frames/sec: --";
+  }
+
+  // Update long task metric every second; use rAF-based fallback count if API not supported
+  setInterval(() => {
+    if (longTaskEl) {
+      const count = supportsLongTasks ? longTasksThisSecond : longFrameCount;
+      longTaskEl.textContent = supportsLongTasks
+        ? `Long tasks/sec: ${count}`
+        : `Long frames/sec: ${count}`;
+    }
+    longTasksThisSecond = 0;
+    longFrameCount = 0;
+  }, 1000);
 })();

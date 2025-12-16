@@ -157,7 +157,16 @@
           />
         </div>
         <div id="time-display">Time: 0:00</div>
+        <div id="fps-display">FPS: 60 | Frame: 0.0ms</div>
         <div id="debug-log">Debug log...</div>
+        <div class="debug-slider-section">
+          <label class="debug-slider-label">Device:</label>
+          <div id="device-temp-display">
+            Temperature: N/A (not exposed to web)
+          </div>
+          <div id="memory-display">Memory: --</div>
+          <div id="longtask-display">Long tasks/sec: --</div>
+        </div>
       </div>
     </div>
 
@@ -431,23 +440,35 @@
           }
         }
 
-        window.addEventListener("keydown", function (e) {
-          // Ignore modifier-only keys
-          if (e.key.length !== 1) return;
-          keyBuffer += e.key.toLowerCase();
-          // Keep buffer reasonably small
-          const maxLen = Math.max("yedgar".length, "lol".length, "cure".length);
-          if (keyBuffer.length > maxLen) {
-            keyBuffer = keyBuffer.slice(-maxLen);
-          }
-          if (keyBuffer.endsWith("yedgar")) {
-            playSfx("yedgar", "yedgar/F9Mog.wav");
-          } else if (keyBuffer.endsWith("lol")) {
-            playSfx("lol", "lol/CDKefkaLaugh.wav");
-          } else if (keyBuffer.endsWith("cure")) {
-            playSfx("cure", "cure/cure.wav");
-          }
-        });
+        // Disable easter egg listeners on mobile to save CPU
+        const isMobileEasterEgg =
+          /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+            navigator.userAgent
+          );
+
+        if (!isMobileEasterEgg) {
+          window.addEventListener("keydown", function (e) {
+            // Ignore modifier-only keys
+            if (e.key.length !== 1) return;
+            keyBuffer += e.key.toLowerCase();
+            // Keep buffer reasonably small
+            const maxLen = Math.max(
+              "yedgar".length,
+              "lol".length,
+              "cure".length
+            );
+            if (keyBuffer.length > maxLen) {
+              keyBuffer = keyBuffer.slice(-maxLen);
+            }
+            if (keyBuffer.endsWith("yedgar")) {
+              playSfx("yedgar", "yedgar/F9Mog.wav");
+            } else if (keyBuffer.endsWith("lol")) {
+              playSfx("lol", "lol/CDKefkaLaugh.wav");
+            } else if (keyBuffer.endsWith("cure")) {
+              playSfx("cure", "cure/cure.wav");
+            }
+          });
+        }
       })();
     </script>
   </body>
