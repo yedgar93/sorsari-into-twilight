@@ -24,8 +24,8 @@ const CONFIG = {
   splineStepsY: isMobile ? 2 : 3, // Decent quality on mobile
 
   // Radial blur settings - adjust these to change blur strength
-  radialBlurStrength: isMobile ? 0.7 : 0.9, // Higher = more blur (0.0 - 1.0)
-  radialBlurSamples: isMobile ? 8 : 12, // Higher = smoother blur but slower (4 - 16)
+  radialBlurStrength: isMobile ? 0.6 : 0.9, // Higher = more blur (0.0 - 1.0)
+  radialBlurSamples: isMobile ? 8 : 10, // Higher = smoother blur but slower (4 - 16)
 
   // Global FPS controller - scales down rendering frequency
   // 1.0 = 60fps, 0.5 = 30fps, 0.33 = 20fps, 0.25 = 15fps
@@ -641,7 +641,7 @@ function init() {
         "  ",
         "  float blurAmount = strength * dist;",
         "  ",
-        "  for(int i = 1; i < 12; i++) {",
+        "  for(int i = 1; i < 16; i++) {",
         "    if(i >= samples) break;",
         "    float scale = 1.0 - blurAmount * (float(i) / float(samples));",
         "    sum += texture2D(tDiffuse, center + dir * dist * scale);",

@@ -85,6 +85,12 @@ body::before {
         );
     background-size: 2.48px 2.48px, 2.48px 2.48px, 100% 100%;
   }
+
+  /* Mobile: keep background black, no fade to dark blue */
+  body.glow-active {
+    animation: none !important;
+    background-color: #000000 !important;
+  }
 }
 
 /* Alternative: Stronger CRT phosphor glow (uncomment to use) */
