@@ -266,6 +266,12 @@ body.glow-active::after {
   display: inline-block;
 }
 
+/* Keep the TERRORHYTHM credit on a single line */
+#terrorhythm-credit {
+  white-space: nowrap;
+  display: inline-block;
+}
+
 #sorsari-credit a:hover,
 #yedgar-credit a:hover,
 #terrorhythm-credit a:hover {
