@@ -66,14 +66,19 @@
   let terrorOriginalRotationSpeed = null; // Store original rotation speed
 
   // Expose manual spin trigger
-  SORSARI.triggerCenterModelSpin = function() {
+  SORSARI.triggerCenterModelSpin = function () {
     const currentTime = SORSARI.musicTime || 0;
     const audio = SORSARI.audioElement;
-    
+
     // Prevent triggering before song starts or after it ends
     if (!audio || audio.currentTime === 0 || audio.ended) return;
-    
-    if (isManualSpinning || isTerrorManualSpinning || currentTime < spinCooldownEndTime) return; // Already spinning or in cooldown
+
+    if (
+      isManualSpinning ||
+      isTerrorManualSpinning ||
+      currentTime < spinCooldownEndTime
+    )
+      return; // Already spinning or in cooldown
     isManualSpinning = true;
     manualSpinStartTime = currentTime;
     // Remove constraints during spin (but not if user is currently interacting)
@@ -82,28 +87,33 @@
       modelViewer.removeAttribute("max-camera-orbit");
     }
     console.log("[Easter Egg] SPIN triggered!");
-    
+
     // Play the lol sound
     const lolSound = new Audio("CDKefkaLaugh.wav");
     lolSound.play();
-    
+
     // Also trigger terror model spin by temporarily increasing rotation speed 5x for 1 second
-    if (!isTerrorManualSpinning && typeof terrorModelViewer !== 'undefined' && terrorModelViewer) {
+    if (
+      !isTerrorManualSpinning &&
+      typeof terrorModelViewer !== "undefined" &&
+      terrorModelViewer
+    ) {
       isTerrorManualSpinning = true;
       // Get current rotation speed
-      const currentSpeed = terrorModelViewer.getAttribute("rotation-per-second") || "45deg"; // default to 45deg if not set
+      const currentSpeed =
+        terrorModelViewer.getAttribute("rotation-per-second") || "45deg"; // default to 45deg if not set
       const speedValue = parseFloat(currentSpeed);
       terrorOriginalRotationSpeed = currentSpeed;
       // Set to 10x speed initially
-      const boostedSpeed = (speedValue * 10) + "deg";
+      const boostedSpeed = speedValue * 10 + "deg";
       terrorModelViewer.setAttribute("rotation-per-second", boostedSpeed);
       // Decelerate: after 0.3s to 5x, 0.6s to 2x, 1s back to normal
       setTimeout(() => {
-        const midSpeed = (speedValue * 5) + "deg";
+        const midSpeed = speedValue * 5 + "deg";
         terrorModelViewer.setAttribute("rotation-per-second", midSpeed);
       }, 300);
       setTimeout(() => {
-        const slowSpeed = (speedValue * 2) + "deg";
+        const slowSpeed = speedValue * 2 + "deg";
         terrorModelViewer.setAttribute("rotation-per-second", slowSpeed);
       }, 600);
       setTimeout(() => {
@@ -111,7 +121,10 @@
         terrorModelViewer.setAttribute("rotation-per-second", "0deg");
         setTimeout(() => {
           if (terrorOriginalRotationSpeed) {
-            terrorModelViewer.setAttribute("rotation-per-second", terrorOriginalRotationSpeed);
+            terrorModelViewer.setAttribute(
+              "rotation-per-second",
+              terrorOriginalRotationSpeed
+            );
           }
           isTerrorManualSpinning = false;
           terrorOriginalRotationSpeed = null;
@@ -198,7 +211,8 @@
 
       // Check for manual spin first
       if (isManualSpinning && manualSpinStartTime !== null) {
-        const manualSpinProgress = (currentTime - manualSpinStartTime) / spinDuration;
+        const manualSpinProgress =
+          (currentTime - manualSpinStartTime) / spinDuration;
         if (manualSpinProgress < 1) {
           currentState = "spinning";
           activeSpinTime = manualSpinStartTime;
@@ -228,24 +242,24 @@
       // Check timeline spins only if not manually spinning
       if (!isManualSpinning) {
         for (let i = 0; i < spinTimes.length; i++) {
-        const spinStart = spinTimes[i];
-        const spinEnd = spinStart + spinDuration;
-        const blendEnd = spinEnd + blendDuration;
+          const spinStart = spinTimes[i];
+          const spinEnd = spinStart + spinDuration;
+          const blendEnd = spinEnd + blendDuration;
 
-        if (currentTime >= spinStart && currentTime < spinEnd) {
-          currentState = "spinning";
-          activeSpinTime = spinStart;
-          if (currentSpinIndex !== i && modelViewer) {
-            currentSpinIndex = i;
-            modelViewer.removeAttribute("min-camera-orbit");
-            modelViewer.removeAttribute("max-camera-orbit");
+          if (currentTime >= spinStart && currentTime < spinEnd) {
+            currentState = "spinning";
+            activeSpinTime = spinStart;
+            if (currentSpinIndex !== i && modelViewer) {
+              currentSpinIndex = i;
+              modelViewer.removeAttribute("min-camera-orbit");
+              modelViewer.removeAttribute("max-camera-orbit");
+            }
+            break;
+          } else if (currentTime >= spinEnd && currentTime < blendEnd) {
+            currentState = "blending";
+            activeSpinTime = spinStart;
+            break;
           }
-          break;
-        } else if (currentTime >= spinEnd && currentTime < blendEnd) {
-          currentState = "blending";
-          activeSpinTime = spinStart;
-          break;
-        }
         }
       }
 

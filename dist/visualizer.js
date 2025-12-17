@@ -1,5 +1,3 @@
-/// <reference path="./types.d.ts" />
-
 // Audio Visualizer - Oscilloscope style waveform (Performance Optimized)
 (function () {
   const visualizerCanvas = document.getElementById("visualizer-canvas");
@@ -11,23 +9,19 @@
     alpha: true,
   });
 
-  // Use centralized mobile detection from script.js
-  const isMobile = window.SORSARI?.isMobile ?? false;
+  // Detect mobile
+  const isMobile =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
 
-  // =====================
-  // VISUALIZER TIMELINE
-  // =====================
-  // Single horizontal line during intro/verses
-  // Multiple horizontal lines during breakdowns and drops
-  // Full fade out at the very end
-  
-  // Timing constants (in seconds with music timestamps)
-  const fadeInStart = 93; // 1:33 - Breakdown section begins (intro waveform)
-  const fadeInEnd = 127; // 2:07 - Second drop (add 2 more lines)
-  const extraLinesTime = 128; // 2:08 - Add 2 additional waveform lines (total 3)
-  const backToNormalTime = 192; // 3:12 - Return to 1 horizontal line
-  const fadeOutStart = 190; // 3:10 - Begin fade out
-  const fadeOutEnd = 212; // 3:32 - Fully faded out
+  // Timing constants (in seconds)
+  const fadeInStart = 93; // Breakdown (1:33)
+  const fadeInEnd = 127; // Second drop (2:07)
+  const extraLinesTime = 128; // 2:08 - add 2 more lines
+  const backToNormalTime = 192; // 3:12 - back to 1 horizontal line
+  const fadeOutStart = 190; // 3:10
+  const fadeOutEnd = 212; // 3:32 - fully faded out
 
   // Canvas dimensions - always full screen
   let width, height, halfHeight;

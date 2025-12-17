@@ -564,7 +564,12 @@ function initAudio() {
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) {
         // Page is being hidden - pause to prevent drift (only if not already paused by user)
-        if (audioReactive && audioElement && !audioElement.paused && !globalPauseState.paused) {
+        if (
+          audioReactive &&
+          audioElement &&
+          !audioElement.paused &&
+          !globalPauseState.paused
+        ) {
           console.log("[Audio] Page hidden - pausing to prevent drift");
           audioElement.pause();
           if (!isMobile) {
@@ -591,7 +596,7 @@ function initAudio() {
         setTimeout(() => {
           // Double-check user hasn't paused while we were waiting
           if (globalPauseState.paused) return;
-          
+
           if (audioElement && audioElement.paused && !audioElement.ended) {
             audioElement.play().catch((err) => {
               console.warn("[Audio] Could not resume main audio:", err);
@@ -751,14 +756,14 @@ function initAudio() {
   SORSARI.analyser = analyser;
 
   // Set media session metadata for "now playing" display
-  if ('mediaSession' in navigator) {
+  if ("mediaSession" in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: 'Into Twilight',
-      artist: 'Sorsari',
-      album: 'Breaking The Surface',
+      title: "Into Twilight",
+      artist: "Sorsari",
+      album: "Breaking The Surface",
       artwork: [
-        { src: 'SOSARI-BTS-FINAL-V4.JPG', sizes: 'any', type: 'image/jpeg' }
-      ]
+        { src: "SOSARI-BTS-FINAL-V4.JPG", sizes: "any", type: "image/jpeg" },
+      ],
     });
   }
 
@@ -4940,13 +4945,13 @@ document.addEventListener(
 // =====================
 // SPIN EASTER EGG - Type "SPIN" to spin the center model
 // =====================
-(function() {
+(function () {
   const isMobileSpin = SORSARI.isMobile || false;
   if (isMobileSpin) return; // Desktop only
-  
+
   let spinBuffer = "";
   let spinTimeout;
-  
+
   document.addEventListener("keydown", (e) => {
     if (e.key.length !== 1) return;
     spinBuffer += e.key.toLowerCase();
@@ -4962,7 +4967,7 @@ document.addEventListener(
       spinBuffer = "";
     }, 2000);
   });
-  
+
   function triggerCenterModelSpin() {
     if (SORSARI.triggerCenterModelSpin) {
       SORSARI.triggerCenterModelSpin();
