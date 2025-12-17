@@ -13,7 +13,7 @@ let ditherDownsampleCtx;
 let cachedCanvases = [];
 let ditherFrameSkip = 0;
 let ditherResizeTimeout;
-const FRAME_SKIP = 3; // Process every 4th frame (25% CPU usage)
+const FRAME_SKIP = 6; // Process every 6th frame (16% CPU usage)
 const DOWNSAMPLE_SCALE = 0.33; // Downsample to 33% resolution (9x fewer pixels)
 
 // Detect mobile
@@ -43,10 +43,16 @@ function toggleDither() {
   ditherActive = !ditherActive;
   if (ditherActive) {
     startDither();
-    // Reduce Three.js renderer quality to 18% for performance
+    // Reduce Three.js renderer quality to 10% for performance
     if (window.root && window.root.renderer) {
-      window.root.renderer.setPixelRatio(0.16);
-      console.log("Three.js pixel ratio reduced to 18%");
+      window.root.renderer.setPixelRatio(0.1);
+      console.log("Three.js pixel ratio reduced to 10%");
+    }
+    // Reduce Three.js FPS for additional performance
+    if (window.CONFIG) {
+      window.CONFIG.originalFpsScale = window.CONFIG.fpsScale;
+      window.CONFIG.fpsScale = 0.25; // Reduce to ~15 FPS
+      console.log("Three.js FPS reduced to 25% (~15 FPS)");
     }
     // Disable chromatic aberration and screen shake
     window.ditherChromaticAberrationDisabled = true;
@@ -60,6 +66,11 @@ function toggleDither() {
         Math.min(window.devicePixelRatio, 1.25) * 0.5
       );
       console.log("Three.js pixel ratio restored to 50%");
+    }
+    // Restore Three.js FPS
+    if (window.CONFIG && window.CONFIG.originalFpsScale !== undefined) {
+      window.CONFIG.fpsScale = window.CONFIG.originalFpsScale;
+      console.log("Three.js FPS restored to original");
     }
     // Re-enable chromatic aberration and screen shake
     window.ditherChromaticAberrationDisabled = false;
