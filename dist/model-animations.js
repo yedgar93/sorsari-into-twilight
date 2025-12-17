@@ -53,11 +53,18 @@
   // 360 spin variables
   const spinTimes = [30.89, 126.9]; // Spin moments at 30.89s and 2:07.03 (127.03s)
   const spinDuration = 1.0; // Duration of spin in seconds
-  const blendDuration = 0.5; // Duration to blend from locked to oscillating after spin
+  const blendDuration = 0.125; // Duration to blend from locked to oscillating after spin
   let currentSpinIndex = -1;
   let lastSpinEndYaw = 0; // Track where the last spin ended
   let lastSpinEndPitch = 75; // Track where the last spin ended
   let lastSpinEndTime = 0; // When the last spin ended
+
+  // User interaction tracking
+  let isUserInteractingWithCenter = false;
+  let isHoldingPosition = false; // Pause animation to hold position
+  let userInteractionTimeout = null;
+  const userInteractionHoldDelay = 500; // 0.5 seconds to hold position after user stops
+  const userInteractionResetDelay = 1000; // 1 second total before restoring constraints
 
   // Throttle camera animation to 30fps (every other frame)
   let cameraFrameCount = 0;
@@ -76,80 +83,92 @@
 
     let yaw, pitch, distance;
 
-    // Calculate oscillation based on time since last spin
-    const timeSinceLastSpin = time - lastSpinEndTime;
-    const oscillationYaw = Math.sin(timeSinceLastSpin * 0.3) * 20;
-    const oscillationPitch = 75 + Math.sin(timeSinceLastSpin * 0.2) * 15;
-    const oscillationDistance = 105 + Math.sin(timeSinceLastSpin * 0.25) * 20;
-
-    // Determine current state
-    let currentState = "normal";
-    let activeSpinTime = 0;
-
-    for (let i = 0; i < spinTimes.length; i++) {
-      const spinStart = spinTimes[i];
-      const spinEnd = spinStart + spinDuration;
-      const blendEnd = spinEnd + blendDuration;
-
-      if (currentTime >= spinStart && currentTime < spinEnd) {
-        currentState = "spinning";
-        activeSpinTime = spinStart;
-        if (currentSpinIndex !== i) {
-          currentSpinIndex = i;
-          modelViewer.removeAttribute("min-camera-orbit");
-          modelViewer.removeAttribute("max-camera-orbit");
-        }
-        break;
-      } else if (currentTime >= spinEnd && currentTime < blendEnd) {
-        currentState = "blending";
-        activeSpinTime = spinStart;
-        break;
-      }
+    // If user is interacting or holding position, don't update camera from timeline
+    if (isUserInteractingWithCenter || isHoldingPosition) {
+      // Don't set cameraOrbit - let the user control it freely or hold current position
+      requestAnimationFrame(animateModelCamera);
+      return;
     }
 
-    if (currentState === "spinning") {
-      // Calculate current oscillation position at the START of the spin
-      const currentOscillationYaw = lastSpinEndYaw + oscillationYaw;
-      const currentOscillationPitch = oscillationPitch;
+    // User is not interacting, so resume timeline animation
+    {
+      // Calculate oscillation based on MUSIC TIME (not local timer)
+      const oscillationYaw = Math.sin(currentTime * 0.3) * 20;
+      const oscillationPitch = 75 + Math.sin(currentTime * 0.2) * 15;
+      const oscillationDistance = 105 + Math.sin(currentTime * 0.25) * 20;
 
-      // Calculate spin progress (0 to 1)
-      const spinProgress = (currentTime - activeSpinTime) / spinDuration;
-      const easedProgress = 1 - Math.pow(1 - spinProgress, 3); // Ease-out cubic
+      // Determine current state
+      let currentState = "normal";
+      let activeSpinTime = 0;
 
-      // Spin 360° from current oscillation position
-      yaw = currentOscillationYaw + easedProgress * 360;
-      pitch = currentOscillationPitch;
-      distance = oscillationDistance;
+      for (let i = 0; i < spinTimes.length; i++) {
+        const spinStart = spinTimes[i];
+        const spinEnd = spinStart + spinDuration;
+        const blendEnd = spinEnd + blendDuration;
 
-      // At end of spin, update where we ended (back to same visual position)
-      if (spinProgress >= 0.99) {
-        lastSpinEndYaw = currentOscillationYaw;
-        lastSpinEndPitch = currentOscillationPitch;
-        lastSpinEndTime = time;
-      }
-    } else if (currentState === "blending") {
-      // Blend from locked to oscillating
-      const blendProgress =
-        (currentTime - (activeSpinTime + spinDuration)) / blendDuration;
-      const blendEase = blendProgress * blendProgress * (3 - 2 * blendProgress); // Smooth step
-
-      // Gradually introduce oscillation amplitude
-      yaw = lastSpinEndYaw + oscillationYaw * blendEase;
-      pitch =
-        lastSpinEndPitch + (oscillationPitch - lastSpinEndPitch) * blendEase;
-      distance = oscillationDistance;
-    } else {
-      // Normal oscillation
-      if (currentSpinIndex !== -1) {
-        // Just exited blend mode - restore constraints
-        currentSpinIndex = -1;
-        modelViewer.setAttribute("min-camera-orbit", "-30deg 60deg auto");
-        modelViewer.setAttribute("max-camera-orbit", "30deg 90deg auto");
+        if (currentTime >= spinStart && currentTime < spinEnd) {
+          currentState = "spinning";
+          activeSpinTime = spinStart;
+          if (currentSpinIndex !== i) {
+            currentSpinIndex = i;
+            modelViewer.removeAttribute("min-camera-orbit");
+            modelViewer.removeAttribute("max-camera-orbit");
+          }
+          break;
+        } else if (currentTime >= spinEnd && currentTime < blendEnd) {
+          currentState = "blending";
+          activeSpinTime = spinStart;
+          break;
+        }
       }
 
-      yaw = lastSpinEndYaw + oscillationYaw;
-      pitch = oscillationPitch;
-      distance = oscillationDistance;
+      if (currentState === "spinning") {
+        // Calculate current oscillation position at the START of the spin
+        const currentOscillationYaw = lastSpinEndYaw + oscillationYaw;
+        const currentOscillationPitch = oscillationPitch;
+
+        // Calculate spin progress (0 to 1)
+        const spinProgress = (currentTime - activeSpinTime) / spinDuration;
+        const easedProgress = 1 - Math.pow(1 - spinProgress, 3); // Ease-out cubic
+
+        // Spin 360° from current oscillation position
+        yaw = currentOscillationYaw + easedProgress * 360;
+        pitch = currentOscillationPitch;
+        distance = oscillationDistance;
+
+        // At end of spin, update where we ended (back to same visual position)
+        if (spinProgress >= 0.99) {
+          lastSpinEndYaw = currentOscillationYaw;
+          lastSpinEndPitch = currentOscillationPitch;
+          lastSpinEndTime = time;
+        }
+      } else if (currentState === "blending") {
+        // Blend from locked to oscillating
+        const blendProgress =
+          (currentTime - (activeSpinTime + spinDuration)) / blendDuration;
+        const blendEase =
+          blendProgress * blendProgress * (3 - 2 * blendProgress); // Smooth step
+
+        // Gradually introduce oscillation amplitude
+        yaw = lastSpinEndYaw + oscillationYaw * blendEase;
+        pitch =
+          lastSpinEndPitch + (oscillationPitch - lastSpinEndPitch) * blendEase;
+        distance = oscillationDistance;
+      } else {
+        // Normal oscillation
+        if (currentSpinIndex !== -1) {
+          // Just exited blend mode - restore constraints (unless user is interacting)
+          currentSpinIndex = -1;
+          if (!isUserInteractingWithCenter) {
+            modelViewer.setAttribute("min-camera-orbit", "-30deg 60deg auto");
+            modelViewer.setAttribute("max-camera-orbit", "30deg 90deg auto");
+          }
+        }
+
+        yaw = lastSpinEndYaw + oscillationYaw;
+        pitch = oscillationPitch;
+        distance = oscillationDistance;
+      }
     }
 
     modelViewer.cameraOrbit = `${yaw}deg ${pitch}deg ${distance}%`;
@@ -159,6 +178,61 @@
 
   modelViewer.addEventListener("load", () => {
     animateModelCamera();
+  });
+
+  // =====================
+  // CENTER MODEL USER INTERACTION
+  // =====================
+  // Detect when user starts interacting with center model
+  modelViewer.addEventListener("mousedown", () => {
+    isUserInteractingWithCenter = true;
+    clearTimeout(userInteractionTimeout);
+    // Allow multiple rotations (720° = 2 full rotations)
+    modelViewer.setAttribute("min-camera-orbit", "-110deg 20deg auto");
+    modelViewer.setAttribute("max-camera-orbit", "110deg 160deg auto");
+  });
+
+  modelViewer.addEventListener("touchstart", () => {
+    isUserInteractingWithCenter = true;
+    clearTimeout(userInteractionTimeout);
+    // Allow multiple rotations (720° = 2 full rotations)
+    modelViewer.setAttribute("min-camera-orbit", "-720deg 0deg auto");
+    modelViewer.setAttribute("max-camera-orbit", "720deg 180deg auto");
+  });
+
+  // Detect when user stops interacting
+  modelViewer.addEventListener("mouseup", () => {
+    if (isUserInteractingWithCenter) {
+      isUserInteractingWithCenter = false;
+      isHoldingPosition = true; // Freeze animation
+      // Keep position frozen for 0.5 seconds
+      clearTimeout(userInteractionTimeout);
+      userInteractionTimeout = setTimeout(() => {
+        isHoldingPosition = false; // Resume animation
+      }, userInteractionHoldDelay);
+      // Restore constraints after 1 second total
+      setTimeout(() => {
+        modelViewer.setAttribute("min-camera-orbit", "-30deg 60deg auto");
+        modelViewer.setAttribute("max-camera-orbit", "30deg 90deg auto");
+      }, userInteractionResetDelay);
+    }
+  });
+
+  modelViewer.addEventListener("touchend", () => {
+    if (isUserInteractingWithCenter) {
+      isUserInteractingWithCenter = false;
+      isHoldingPosition = true; // Freeze animation
+      // Keep position frozen for 0.5 seconds
+      clearTimeout(userInteractionTimeout);
+      userInteractionTimeout = setTimeout(() => {
+        isHoldingPosition = false; // Resume animation
+      }, userInteractionHoldDelay);
+      // Restore constraints after 1 second total
+      setTimeout(() => {
+        modelViewer.setAttribute("min-camera-orbit", "-30deg 60deg auto");
+        modelViewer.setAttribute("max-camera-orbit", "30deg 90deg auto");
+      }, userInteractionResetDelay);
+    }
   });
 
   // =====================

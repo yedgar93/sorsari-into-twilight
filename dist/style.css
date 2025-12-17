@@ -689,7 +689,7 @@ img {
   width: 555px;
   height: 555px;
   z-index: 10002; /* Above SNES intro stars (10001) */
-  pointer-events: none;
+  pointer-events: auto;
   will-change: filter;
 }
 
@@ -702,7 +702,7 @@ img {
   width: 555px;
   height: 555px;
   z-index: 10002; /* Above SNES intro stars (10001) */
-  pointer-events: none;
+  pointer-events: auto;
   will-change: filter, transform;
   filter: brightness(0.1);
   /* Smooth parallax depth shift animation */
@@ -717,7 +717,7 @@ img {
   transform: translate(-50%, -50%);
   width: 555px;
   height: 555px;
-  pointer-events: none;
+  pointer-events: auto;
   z-index: 10;
   opacity: 0;
 }
@@ -842,9 +842,16 @@ model-viewer::part(bar) {
   opacity: 0;
   transition: height 0.5s ease, width 0.5s ease;
   scale: 0.7;
+  cursor: default !important;
 }
 .center-model-viewer {
   transition: width 0.5s ease, height 0.5s ease;
+  cursor: default !important;
+}
+
+/* Override model-viewer's default cursor */
+model-viewer {
+  cursor: default !important;
 }
 
 /* SORSARI text (bottom left) */
