@@ -786,7 +786,7 @@ function initAudio() {
         source.buffer = beepBuffer;
         source.connect(gainNode);
         gainNode.connect(audioContext.destination);
-        gainNode.gain.value = 0.25;
+        gainNode.gain.value = 0.35;
         source.start(0, 0.02);
       }
     },
