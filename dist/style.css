@@ -217,6 +217,30 @@ body.glow-active::after {
   display: none;
 }
 
+/* Coded by credit at bottom */
+#coded-by-credit {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: "Tiny5", monospace;
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.77);
+  text-align: center;
+  letter-spacing: 1px;
+  z-index: 10000;
+  pointer-events: auto;
+  opacity: 0.8;
+  transition: opacity 0.0125s ease-out;
+  cursor: pointer;
+}
+
+/* Fade out when song starts */
+body.glow-active #coded-by-credit {
+  opacity: 0;
+}
+
 /* Touch to start container */
 #touch-to-start-container {
   position: fixed;
@@ -779,7 +803,7 @@ model-viewer::part(bar) {
   height: 100%;
   z-index: 1;
   pointer-events: none;
-  opacity: 0.66;
+  opacity: 0.64;
 }
 
 #three-container {

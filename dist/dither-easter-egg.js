@@ -14,7 +14,7 @@ let cachedCanvases = [];
 let ditherFrameSkip = 0;
 let ditherResizeTimeout;
 const FRAME_SKIP = 6; // Process every 6th frame (16% CPU usage)
-const DOWNSAMPLE_SCALE = 0.33; // Downsample to 33% resolution (9x fewer pixels)
+const DOWNSAMPLE_SCALE = 0.3; // Downsample to 30% resolution (9x fewer pixels)
 
 // Detect mobile
 const isMobileDither =
@@ -39,20 +39,69 @@ if (!isMobileDither) {
   });
 }
 
+// Add double-click/double-tap handler to "Coded by YEDGAR" credit to enable classic mode
+const codedByCredit = document.getElementById("coded-by-credit");
+if (codedByCredit) {
+  // Desktop double-click
+  codedByCredit.addEventListener("dblclick", () => {
+    if (!ditherActive) {
+      toggleDither();
+      console.log("Classic mode enabled via credit double-click");
+    }
+  });
+
+  // Mobile double-tap
+  let lastTapTime = 0;
+  const doubleTapDelay = 300;
+
+  codedByCredit.addEventListener(
+    "touchend",
+    (e) => {
+      const currentTime = Date.now();
+      const tapLength = currentTime - lastTapTime;
+
+      if (tapLength < doubleTapDelay && tapLength > 0) {
+        e.preventDefault();
+        if (!ditherActive) {
+          toggleDither();
+          console.log("Classic mode enabled via credit double-tap");
+          // Start the song on mobile when double-tapping credits
+          if (window.playAllTracks) {
+            window.playAllTracks();
+          }
+        }
+        lastTapTime = 0;
+        return;
+      }
+      lastTapTime = currentTime;
+    },
+    { passive: false }
+  );
+}
+
 function toggleDither() {
   ditherActive = !ditherActive;
+  const threeContainer = document.querySelector("#three-container");
   if (ditherActive) {
     startDither();
+    // Limit all FPS to 30fps max
+    window.ditherMaxFps = 30;
+    console.log("Max FPS limited to 30fps");
+
     // Reduce Three.js renderer quality to 10% for performance
     if (window.root && window.root.renderer) {
       window.root.renderer.setPixelRatio(0.1);
       console.log("Three.js pixel ratio reduced to 10%");
     }
-    // Reduce Three.js FPS for additional performance
-    if (window.CONFIG) {
-      window.CONFIG.originalFpsScale = window.CONFIG.fpsScale;
-      window.CONFIG.fpsScale = 0.25; // Reduce to ~15 FPS
-      console.log("Three.js FPS reduced to 25% (~15 FPS)");
+    // Reduce Three.js canvas brightness to 55%
+    if (threeContainer) {
+      threeContainer.style.filter = "brightness(0.55)";
+      console.log("Three.js brightness reduced to 55%");
+    }
+    // Disable bloom for performance
+    if (window.SORSARI && window.SORSARI.bloomPass) {
+      window.SORSARI.bloomPass.enabled = false;
+      console.log("Bloom disabled for performance");
     }
     // Disable chromatic aberration and screen shake
     window.ditherChromaticAberrationDisabled = true;
@@ -60,6 +109,10 @@ function toggleDither() {
     console.log("Dithering mode enabled!");
   } else {
     stopDither();
+    // Remove FPS limit
+    window.ditherMaxFps = null;
+    console.log("Max FPS limit removed");
+
     // Restore Three.js renderer quality to 50% (original)
     if (window.root && window.root.renderer) {
       window.root.renderer.setPixelRatio(
@@ -67,10 +120,15 @@ function toggleDither() {
       );
       console.log("Three.js pixel ratio restored to 50%");
     }
-    // Restore Three.js FPS
-    if (window.CONFIG && window.CONFIG.originalFpsScale !== undefined) {
-      window.CONFIG.fpsScale = window.CONFIG.originalFpsScale;
-      console.log("Three.js FPS restored to original");
+    // Restore Three.js canvas brightness
+    if (threeContainer) {
+      threeContainer.style.filter = "none";
+      console.log("Three.js brightness restored to 100%");
+    }
+    // Re-enable bloom
+    if (window.SORSARI && window.SORSARI.bloomPass) {
+      window.SORSARI.bloomPass.enabled = true;
+      console.log("Bloom re-enabled");
     }
     // Re-enable chromatic aberration and screen shake
     window.ditherChromaticAberrationDisabled = false;

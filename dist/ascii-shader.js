@@ -194,6 +194,20 @@ window.addEventListener("resize", () => {
 function asciiLoop() {
   if (!asciiActive || !asciiCanvas) return;
 
+  // Apply FPS limit if dither mode is active (30fps max)
+  if (window.ditherMaxFps) {
+    const now = performance.now();
+    const frameTime = 1000 / window.ditherMaxFps; // ~33.33ms for 30fps
+    if (!window.lastAsciiFrameTime) {
+      window.lastAsciiFrameTime = now;
+    }
+    if (now - window.lastAsciiFrameTime < frameTime) {
+      requestAnimationFrame(asciiLoop);
+      return;
+    }
+    window.lastAsciiFrameTime = now;
+  }
+
   // Frame skipping based on global FPS scale (CONFIG.fpsScale from script.js)
   frameSkipCounter++;
   const fpsScale = window.CONFIG?.fpsScale || 0.33;

@@ -80,6 +80,20 @@
     let visualizerFrameCount = 0;
 
     function visualize() {
+      // Apply FPS limit if dither mode is active (30fps max)
+      if (window.ditherMaxFps) {
+        const now = performance.now();
+        const frameTime = 1000 / window.ditherMaxFps; // ~33.33ms for 30fps
+        if (!window.lastVisualizerFrameTime) {
+          window.lastVisualizerFrameTime = now;
+        }
+        if (now - window.lastVisualizerFrameTime < frameTime) {
+          requestAnimationFrame(visualize);
+          return;
+        }
+        window.lastVisualizerFrameTime = now;
+      }
+
       // FPS scaling - skip frames based on CONFIG.fpsScale from script.js
       const fpsScale = window.CONFIG?.fpsScale || 1.0;
       const frameSkipInterval = Math.max(1, Math.round(1 / fpsScale));

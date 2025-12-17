@@ -579,6 +579,9 @@ function initAudio() {
       });
   }
 
+  // Expose playAllTracks to window for use by other scripts (e.g., dither-easter-egg.js)
+  window.playAllTracks = playAllTracks;
+
   // Check if autoplay parameter is set (from replay button)
   const urlParams = new URLSearchParams(window.location.search);
   const shouldAutoplay = urlParams.get("autoplay") === "true";
@@ -602,21 +605,48 @@ function initAudio() {
 
   // Fallback for autoplay prevention (especially on mobile)
   // On mobile, autoplay is blocked by browser policy, so we need a user gesture
-  document.addEventListener("click", function handleUserClick() {
-    if (!audioReactive) {
-      // Only try to play if assets are loaded
-      if (assetsLoaded) {
-        console.log("User interaction detected - starting playback");
+  // COMMENTED OUT - Only allow starting via touch-to-start container or double-tap credits
+  // document.addEventListener("click", function handleUserClick() {
+  //   if (!audioReactive) {
+  //     // Only try to play if assets are loaded
+  //     if (assetsLoaded) {
+  //       console.log("User interaction detected - starting playback");
+  //       playAllTracks();
+  //       // Remove listener after successful playback attempt
+  //       document.removeEventListener("click", handleUserClick);
+  //     } else {
+  //       console.log(
+  //         "User clicked but assets still loading - will retry when ready"
+  //       );
+  //     }
+  //   }
+  // });
+
+  // Add click/touch handler to touch-to-start container to start the song
+  const touchToStartContainer = document.getElementById(
+    "touch-to-start-container"
+  );
+  if (touchToStartContainer) {
+    touchToStartContainer.addEventListener("click", function () {
+      if (!audioReactive && assetsLoaded) {
+        console.log("Touch-to-start clicked - starting playback");
         playAllTracks();
-        // Remove listener after successful playback attempt
-        document.removeEventListener("click", handleUserClick);
-      } else {
-        console.log(
-          "User clicked but assets still loading - will retry when ready"
-        );
       }
-    }
-  });
+    });
+
+    // Also handle touch events for mobile
+    touchToStartContainer.addEventListener(
+      "touchend",
+      function (e) {
+        e.preventDefault();
+        if (!audioReactive && assetsLoaded) {
+          console.log("Touch-to-start touched - starting playback");
+          playAllTracks();
+        }
+      },
+      { passive: false }
+    );
+  }
 
   // Override the skipToTime function to sync all three audio tracks
   SORSARI.skipToTime = function (seconds) {
@@ -1769,7 +1799,18 @@ function init() {
         if (threeContainer) {
           // Apply invert + hue-rotate to keep colors looking the same
           // Hue rotation of 180deg compensates for the color inversion
-          threeContainer.style.filter = "invert(100%) hue-rotate(180deg)";
+          const currentFilter = threeContainer.style.filter || "none";
+          let newFilter = "invert(100%) hue-rotate(180deg)";
+
+          // Preserve brightness filter if it exists
+          if (
+            currentFilter !== "none" &&
+            currentFilter.includes("brightness")
+          ) {
+            newFilter = `${newFilter} ${currentFilter}`;
+          }
+
+          threeContainer.style.filter = newFilter;
           console.log("Applied filter:", threeContainer.style.filter);
         } else {
           console.error("threeContainer is NULL!");
@@ -1800,8 +1841,22 @@ function init() {
         );
 
         if (threeContainer) {
-          threeContainer.style.filter = "none";
-          console.log("Removed filter");
+          const currentFilter = threeContainer.style.filter || "none";
+          let newFilter = "none";
+
+          // Preserve brightness filter if it exists
+          if (
+            currentFilter !== "none" &&
+            currentFilter.includes("brightness")
+          ) {
+            const brightnessMatch = currentFilter.match(/brightness\([^)]*\)/);
+            if (brightnessMatch) {
+              newFilter = brightnessMatch[0];
+            }
+          }
+
+          threeContainer.style.filter = newFilter;
+          console.log("Removed filter, new filter:", newFilter);
         }
 
         invertFilterRemoved = true;
@@ -1946,7 +2001,7 @@ function init() {
 
         // Preserve existing filters (invert, blur, etc.)
         if (currentFilter !== "none" && !currentFilter.includes("brightness")) {
-          filterValue = `${filterValue} ${currentFilter}`;
+          filterValue = `${currentFilter} ${filterValue}`;
         }
 
         threeContainer.style.filter = filterValue;

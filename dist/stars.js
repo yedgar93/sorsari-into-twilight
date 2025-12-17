@@ -346,6 +346,20 @@
       return;
     }
 
+    // Apply FPS limit if dither mode is active (30fps max)
+    if (window.ditherMaxFps) {
+      const now = performance.now();
+      const frameTime = 1000 / window.ditherMaxFps; // ~33.33ms for 30fps
+      if (!window.lastStarsFrameTime) {
+        window.lastStarsFrameTime = now;
+      }
+      if (now - window.lastStarsFrameTime < frameTime) {
+        requestAnimationFrame(animateStars);
+        return;
+      }
+      window.lastStarsFrameTime = now;
+    }
+
     const currentTime = SORSARI.musicTime || 0;
     const isDropActive =
       (currentTime >= firstDropTime && currentTime < breakdownTime) ||
