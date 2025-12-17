@@ -1,3 +1,5 @@
+/// <reference path="./types.d.ts" />
+
 /**
  * Debug Window Controls
  * - Keyboard listener to show debug window when typing "debug"

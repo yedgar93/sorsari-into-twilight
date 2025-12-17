@@ -1,3 +1,5 @@
+/// <reference path="./types.d.ts" />
+
 /**
  * Parallax Stars Background
  * - Multi-layer star field with parallax effect
@@ -180,9 +182,9 @@
   // =====================
   // Everything fades out at the end to black
   
-  const finalBlurFadeStart = 214.5; // 3:34.5 - Begin final fade out
+  const finalBlurFadeStart = 209.5; // 3:29.5 - Begin final fade out (5 seconds earlier)
   const finalBlurFadeDuration = 12.5; // Fade over 12.5 seconds to end at 3:47
-  const finalBlurFadeEnd = finalBlurFadeStart + finalBlurFadeDuration; // 227 seconds (3:47)
+  const finalBlurFadeEnd = finalBlurFadeStart + finalBlurFadeDuration; // 222 seconds (3:42)
 
   // =====================
   // CHROMATIC ABERRATION (Color Shift Effect)
@@ -1050,9 +1052,12 @@
     // Reset filter after all layers are drawn
     starsCtx.filter = "none";
 
-    // Kill stars animation after final fade out (3:35) to save performance
-    if (currentTime >= finalBlurFadeEnd && !starsAnimationKilled) {
+    // Kill stars animation ONLY after canvas is fully transparent to prevent freeze effect
+    // Wait 0.5 seconds after fade completes to ensure smooth transition
+    const killAnimationTime = finalBlurFadeEnd + 0.5;
+    if (currentTime >= killAnimationTime && !starsAnimationKilled) {
       starsAnimationKilled = true;
+      console.log("[Stars] Animation stopped - canvas fully transparent");
       // Stop requesting animation frames - stars are fully faded out
       return;
     }

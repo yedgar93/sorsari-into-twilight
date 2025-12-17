@@ -1,3 +1,5 @@
+/// <reference path="./types.d.ts" />
+
 /**
  * Model Viewer Animations
  * - Center model camera animation (oscillation and 360° spin)
@@ -55,6 +57,69 @@
   const spinDuration = 1.0; // Duration of spin in seconds
   const blendDuration = 0.125; // Duration to blend from locked to oscillating after spin
   let currentSpinIndex = -1;
+  let manualSpinStartTime = null; // For manual spin trigger
+  let isManualSpinning = false;
+  let spinCooldownEndTime = 0; // Prevent retriggering too soon
+
+  // Terror model manual spin variables
+  let isTerrorManualSpinning = false;
+  let terrorOriginalRotationSpeed = null; // Store original rotation speed
+
+  // Expose manual spin trigger
+  SORSARI.triggerCenterModelSpin = function() {
+    const currentTime = SORSARI.musicTime || 0;
+    const audio = SORSARI.audioElement;
+    
+    // Prevent triggering before song starts or after it ends
+    if (!audio || audio.currentTime === 0 || audio.ended) return;
+    
+    if (isManualSpinning || isTerrorManualSpinning || currentTime < spinCooldownEndTime) return; // Already spinning or in cooldown
+    isManualSpinning = true;
+    manualSpinStartTime = currentTime;
+    // Remove constraints during spin (but not if user is currently interacting)
+    if (modelViewer && !isUserInteractingWithCenter) {
+      modelViewer.removeAttribute("min-camera-orbit");
+      modelViewer.removeAttribute("max-camera-orbit");
+    }
+    console.log("[Easter Egg] SPIN triggered!");
+    
+    // Play the lol sound
+    const lolSound = new Audio("CDKefkaLaugh.wav");
+    lolSound.play();
+    
+    // Also trigger terror model spin by temporarily increasing rotation speed 5x for 1 second
+    if (!isTerrorManualSpinning && typeof terrorModelViewer !== 'undefined' && terrorModelViewer) {
+      isTerrorManualSpinning = true;
+      // Get current rotation speed
+      const currentSpeed = terrorModelViewer.getAttribute("rotation-per-second") || "45deg"; // default to 45deg if not set
+      const speedValue = parseFloat(currentSpeed);
+      terrorOriginalRotationSpeed = currentSpeed;
+      // Set to 10x speed initially
+      const boostedSpeed = (speedValue * 10) + "deg";
+      terrorModelViewer.setAttribute("rotation-per-second", boostedSpeed);
+      // Decelerate: after 0.3s to 5x, 0.6s to 2x, 1s back to normal
+      setTimeout(() => {
+        const midSpeed = (speedValue * 5) + "deg";
+        terrorModelViewer.setAttribute("rotation-per-second", midSpeed);
+      }, 300);
+      setTimeout(() => {
+        const slowSpeed = (speedValue * 2) + "deg";
+        terrorModelViewer.setAttribute("rotation-per-second", slowSpeed);
+      }, 600);
+      setTimeout(() => {
+        // Pause rotation for 250ms like center model freeze
+        terrorModelViewer.setAttribute("rotation-per-second", "0deg");
+        setTimeout(() => {
+          if (terrorOriginalRotationSpeed) {
+            terrorModelViewer.setAttribute("rotation-per-second", terrorOriginalRotationSpeed);
+          }
+          isTerrorManualSpinning = false;
+          terrorOriginalRotationSpeed = null;
+        }, 250);
+      }, 1000);
+    }
+  };
+  // Dedicated animation loop for terror model camera
   let lastSpinEndYaw = 0; // Track where the last spin ended
   let lastSpinEndPitch = 75; // Track where the last spin ended
   let lastSpinEndTime = 0; // When the last spin ended
@@ -131,7 +196,38 @@
       let currentState = "normal";
       let activeSpinTime = 0;
 
-      for (let i = 0; i < spinTimes.length; i++) {
+      // Check for manual spin first
+      if (isManualSpinning && manualSpinStartTime !== null) {
+        const manualSpinProgress = (currentTime - manualSpinStartTime) / spinDuration;
+        if (manualSpinProgress < 1) {
+          currentState = "spinning";
+          activeSpinTime = manualSpinStartTime;
+        } else if (manualSpinProgress < 1 + blendDuration) {
+          currentState = "blending";
+          activeSpinTime = manualSpinStartTime;
+        } else {
+          // Manual spin complete - freeze position like user interaction reset
+          isManualSpinning = false;
+          manualSpinStartTime = null;
+          spinCooldownEndTime = (SORSARI.musicTime || 0) + 1.0; // 1 second cooldown
+          isHoldingPosition = true; // Freeze animation
+          // Keep position frozen for 0.25 seconds
+          setTimeout(() => {
+            isHoldingPosition = false; // Resume animation
+          }, 250);
+          // Restore constraints after 1 second total
+          setTimeout(() => {
+            if (modelViewer) {
+              modelViewer.setAttribute("min-camera-orbit", "-30deg 60deg auto");
+              modelViewer.setAttribute("max-camera-orbit", "30deg 90deg auto");
+            }
+          }, 1000);
+        }
+      }
+
+      // Check timeline spins only if not manually spinning
+      if (!isManualSpinning) {
+        for (let i = 0; i < spinTimes.length; i++) {
         const spinStart = spinTimes[i];
         const spinEnd = spinStart + spinDuration;
         const blendEnd = spinEnd + blendDuration;
@@ -149,6 +245,7 @@
           currentState = "blending";
           activeSpinTime = spinStart;
           break;
+        }
         }
       }
 
@@ -259,7 +356,7 @@
 
   /**
    * Handle touch interaction start (mobile)
-   * Expands constraints even more for touch devices
+   * Expands constraints to allow free rotation (same as desktop)
    */
   modelViewer.addEventListener("touchstart", () => {
     // Only allow interaction after 10 seconds
@@ -268,9 +365,9 @@
     }
     isUserInteractingWithCenter = true;
     clearTimeout(userInteractionTimeout);
-    // Allow multiple rotations (720° = 2 full rotations)
-    modelViewer.setAttribute("min-camera-orbit", "-720deg 0deg auto");
-    modelViewer.setAttribute("max-camera-orbit", "720deg 180deg auto");
+    // Allow same rotation range as desktop: ±110° yaw, 20-160° pitch
+    modelViewer.setAttribute("min-camera-orbit", "-110deg 20deg auto");
+    modelViewer.setAttribute("max-camera-orbit", "110deg 160deg auto");
   });
 
   /**
@@ -515,6 +612,9 @@
 
   // Click on final image to open Spotify
   finalImage.addEventListener("click", () => {
+    if (SORSARI.beepSound) {
+      SORSARI.beepSound.play();
+    }
     window.open(
       "https://open.spotify.com/artist/2t01L1I0juJWbThU5jP06Y",
       "_blank"
@@ -579,17 +679,16 @@
   let resetTimeout;
   let userHasMoved = false;
 
-  // Helper: allow link only when audio is playing and
-  // the UI fade-in has been active for at least 1s
+  // Helper: allow link only when UI fade-in has been active for at least 1s
+  // (allowing link even when paused or ended, just not before fade-in)
   function canOpenTerrorLink() {
     const audio = window.SORSARI && SORSARI.audioElement;
-    const playing = !!(audio && !audio.paused && !audio.ended);
     const t =
       (window.SORSARI && (SORSARI.musicTime || (audio && audio.currentTime))) ||
       0;
     // Allow only after the global text/model fade-in has been active >= 1s
     const fadeGuardPassed = t >= textFadeInStart + 1.0;
-    return playing && fadeGuardPassed;
+    return fadeGuardPassed;
   }
 
   // Double click/tap to open SoundCloud link
@@ -706,6 +805,8 @@
   const trackTitleFadeOutDuration =
     trackTitleFadeOutEnd - trackTitleFadeOutStart;
 
+  let terrorModelFadedIn = false; // Track if terror model has faded in
+
   function animateTextFadeIn() {
     const currentTime = SORSARI.musicTime || 0;
 
@@ -715,6 +816,10 @@
       sorsariText.style.opacity = opacity;
       trackTitle.style.opacity = opacity * 0.7;
       terrorModel.style.opacity = opacity;
+      // Only disable pointer-events if not yet faded in
+      if (!terrorModelFadedIn) {
+        terrorModel.style.pointerEvents = "none";
+      }
       bottomImage.style.opacity = opacity;
       mobileLeftImage.style.opacity = opacity;
       mobileRightImage.style.opacity = opacity;
@@ -725,6 +830,8 @@
       sorsariText.style.opacity = opacity;
       trackTitle.style.opacity = opacity * 0.7;
       terrorModel.style.opacity = opacity;
+      terrorModel.style.pointerEvents = "auto";
+      terrorModelFadedIn = true; // Mark as faded in
       bottomImage.style.opacity = opacity;
       mobileLeftImage.style.opacity = opacity;
       mobileRightImage.style.opacity = opacity;
@@ -745,6 +852,8 @@
       trackTitle.style.opacity = trackTitleOpacity;
 
       terrorModel.style.opacity = 1;
+      terrorModel.style.pointerEvents = "auto";
+      terrorModelFadedIn = true; // Mark as faded in
       bottomImage.style.opacity = 1;
       mobileLeftImage.style.opacity = 1;
       mobileRightImage.style.opacity = 1;

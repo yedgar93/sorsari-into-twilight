@@ -1,3 +1,5 @@
+/// <reference path="./types.d.ts" />
+
 // =====================
 // SORSARI Namespace
 // Single global object to share state between scripts
@@ -5,6 +7,7 @@
 window.SORSARI = window.SORSARI || {};
 window.SORSARI.musicTime = 0;
 window.SORSARI.audioElement = null;
+window.SORSARI.beepSound = null;
 window.SORSARI.getInstrumentsLevel = function () {
   return 0;
 }; // Will be replaced after init
@@ -81,9 +84,10 @@ SORSARI.assetsLoaded = function () {
 };
 
 // Detect mobile devices - centralized for all scripts
-window.SORSARI.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-  navigator.userAgent
-);
+window.SORSARI.isMobile =
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
 
 // Local reference for convenience within this file
 const isMobile = window.SORSARI.isMobile;
@@ -137,6 +141,25 @@ let failsafeRoot = null;
 let failsafeBloomPass = null;
 let failsafeRadialBlurPass = null;
 
+// =====================
+// FULLSCREEN TOGGLE (F KEY)
+// =====================
+document.addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() === "f" && audioReactive) {
+    if (document.fullscreenElement) {
+      // Exit fullscreen
+      document.exitFullscreen().catch((err) => {
+        console.log("[Fullscreen] Exit failed:", err.message);
+      });
+    } else if (document.documentElement.requestFullscreen) {
+      // Enter fullscreen
+      document.documentElement.requestFullscreen().catch((err) => {
+        console.log("[Fullscreen] Request failed:", err.message);
+      });
+    }
+  }
+});
+
 // Global pause state for failsafe
 let globalPauseState = { paused: false };
 // Expose to window so other scripts can check pause state
@@ -150,6 +173,31 @@ let pendingDOMUpdates = {
   trackTitle: null,
   hasUpdates: false,
 };
+
+// =====================
+// PREVENT MODEL-VIEWER FOCUS/OUTLINE
+// =====================
+// Remove focus outline from model-viewers and prevent any focus styling
+setTimeout(() => {
+  const modelViewers = document.querySelectorAll("model-viewer");
+  modelViewers.forEach((mv) => {
+    // Prevent focus
+    mv.addEventListener("focus", (e) => {
+      e.preventDefault();
+      mv.blur();
+    });
+
+    // Prevent focusin
+    mv.addEventListener("focusin", (e) => {
+      e.preventDefault();
+      mv.blur();
+    });
+
+    // Remove any outline styling
+    mv.style.outline = "none";
+    mv.style.boxShadow = "none";
+  });
+}, 100);
 
 // Cache DOM element references (set during init)
 let cachedDOMElements = {
@@ -443,13 +491,13 @@ function initAudio() {
       return;
     }
     audioContext = new AudioContextClass();
-    
+
     // =====================
     // AUDIO CONTEXT INTERRUPTION HANDLING (Critical for Mobile)
     // =====================
     // Mobile browsers (especially iOS Safari) can suspend/interrupt audio context
     // when the page loses focus or when the user receives a call
-    
+
     /**
      * Resume audio context if it gets suspended
      * This is critical for mobile browsers which suspend audio when:
@@ -459,12 +507,19 @@ function initAudio() {
      * - Browser switches tabs
      */
     function resumeAudioContext() {
-      if (audioContext && audioContext.state === "suspended") {
-        audioContext.resume().then(() => {
-          console.log("[Audio] Audio context resumed after suspension");
-        }).catch((err) => {
-          console.error("[Audio] Failed to resume audio context:", err);
-        });
+      try {
+        if (audioContext && audioContext.state === "suspended") {
+          audioContext
+            .resume()
+            .then(() => {
+              console.log("[Audio] Audio context resumed after suspension");
+            })
+            .catch((err) => {
+              console.error("[Audio] Failed to resume audio context:", err);
+            });
+        }
+      } catch (err) {
+        console.error("[Audio] Exception in resumeAudioContext:", err);
       }
     }
 
@@ -478,16 +533,26 @@ function initAudio() {
 
       // Get the master time from main audio element
       const masterTime = audioElement.currentTime;
-      
+
       // Sync stem tracks on desktop (if they exist)
       if (!isMobile) {
-        if (drumsElement && Math.abs(drumsElement.currentTime - masterTime) > 0.1) {
+        if (
+          drumsElement &&
+          Math.abs(drumsElement.currentTime - masterTime) > 0.1
+        ) {
           drumsElement.currentTime = masterTime;
-          console.log(`[Audio] Resynced drums track to ${masterTime.toFixed(2)}s`);
+          console.log(
+            `[Audio] Resynced drums track to ${masterTime.toFixed(2)}s`
+          );
         }
-        if (instrumentsElement && Math.abs(instrumentsElement.currentTime - masterTime) > 0.1) {
+        if (
+          instrumentsElement &&
+          Math.abs(instrumentsElement.currentTime - masterTime) > 0.1
+        ) {
           instrumentsElement.currentTime = masterTime;
-          console.log(`[Audio] Resynced instruments track to ${masterTime.toFixed(2)}s`);
+          console.log(
+            `[Audio] Resynced instruments track to ${masterTime.toFixed(2)}s`
+          );
         }
       }
 
@@ -498,28 +563,36 @@ function initAudio() {
     // Handle page visibility changes (mobile browsers often suspend audio when hidden)
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) {
-        // Page is being hidden - pause to prevent drift
-        if (audioReactive && audioElement && !audioElement.paused) {
+        // Page is being hidden - pause to prevent drift (only if not already paused by user)
+        if (audioReactive && audioElement && !audioElement.paused && !globalPauseState.paused) {
           console.log("[Audio] Page hidden - pausing to prevent drift");
           audioElement.pause();
           if (!isMobile) {
             if (drumsElement) drumsElement.pause();
             if (instrumentsElement) instrumentsElement.pause();
           }
+          // On mobile, show paused overlay when swiping away
+          if (isMobile) {
+            globalPauseState.paused = true;
+            showPausedOverlay();
+          }
         }
-      } else if (audioReactive) {
-        // Page became visible again - resync and resume
+      } else if (audioReactive && !globalPauseState.paused) {
+        // Page became visible again - resync and resume (only if not user-paused)
         console.log("[Audio] Page visible - resyncing and resuming");
-        
+
         // First resync all tracks
         resyncAudioTracks();
-        
+
         // Then resume audio context
         resumeAudioContext();
-        
+
         // Finally resume playback with a small delay to ensure sync
         setTimeout(() => {
-          if (audioElement && audioElement.paused) {
+          // Double-check user hasn't paused while we were waiting
+          if (globalPauseState.paused) return;
+          
+          if (audioElement && audioElement.paused && !audioElement.ended) {
             audioElement.play().catch((err) => {
               console.warn("[Audio] Could not resume main audio:", err);
             });
@@ -537,6 +610,17 @@ function initAudio() {
             }
           }
         }, 50); // Small delay to ensure audio context is ready
+      } else if (isMobile && globalPauseState.paused) {
+        // On mobile, if we paused due to visibility change, ensure audio stays paused
+        if (audioElement && !audioElement.paused) {
+          audioElement.pause();
+        }
+        if (drumsElement && !drumsElement.paused) {
+          drumsElement.pause();
+        }
+        if (instrumentsElement && !instrumentsElement.paused) {
+          instrumentsElement.pause();
+        }
       }
     });
 
@@ -555,16 +639,30 @@ function initAudio() {
       setInterval(() => {
         if (audioReactive && audioElement && !audioElement.paused) {
           const masterTime = audioElement.currentTime;
-          
+
           // Check drums drift
-          if (drumsElement && Math.abs(drumsElement.currentTime - masterTime) > 0.1) {
-            console.warn(`[Audio] Detected drift in drums track: ${Math.abs(drumsElement.currentTime - masterTime).toFixed(3)}s`);
+          if (
+            drumsElement &&
+            Math.abs(drumsElement.currentTime - masterTime) > 0.1
+          ) {
+            console.warn(
+              `[Audio] Detected drift in drums track: ${Math.abs(
+                drumsElement.currentTime - masterTime
+              ).toFixed(3)}s`
+            );
             drumsElement.currentTime = masterTime;
           }
-          
+
           // Check instruments drift
-          if (instrumentsElement && Math.abs(instrumentsElement.currentTime - masterTime) > 0.1) {
-            console.warn(`[Audio] Detected drift in instruments track: ${Math.abs(instrumentsElement.currentTime - masterTime).toFixed(3)}s`);
+          if (
+            instrumentsElement &&
+            Math.abs(instrumentsElement.currentTime - masterTime) > 0.1
+          ) {
+            console.warn(
+              `[Audio] Detected drift in instruments track: ${Math.abs(
+                instrumentsElement.currentTime - masterTime
+              ).toFixed(3)}s`
+            );
             instrumentsElement.currentTime = masterTime;
           }
         }
@@ -574,8 +672,14 @@ function initAudio() {
     // Handle user interaction to unlock audio (required on iOS)
     // This ensures audio context is ready even if it was blocked initially
     const unlockAudio = () => {
-      if (audioContext && audioContext.state === "suspended") {
-        audioContext.resume();
+      try {
+        if (audioContext && audioContext.state === "suspended") {
+          audioContext.resume().catch((err) => {
+            console.warn("[Audio] Could not resume on user interaction:", err);
+          });
+        }
+      } catch (err) {
+        console.error("[Audio] Exception in unlockAudio:", err);
       }
     };
 
@@ -584,12 +688,21 @@ function initAudio() {
     document.addEventListener("click", unlockAudio, { once: true });
 
     // Monitor audio context state changes (useful for debugging)
-    if (audioContext.onstatechange !== undefined) {
-      audioContext.onstatechange = () => {
-        console.log(`[Audio] AudioContext state changed to: ${audioContext.state}`);
-      };
+    try {
+      if (audioContext.onstatechange !== undefined) {
+        audioContext.onstatechange = () => {
+          try {
+            console.log(
+              `[Audio] AudioContext state changed to: ${audioContext.state}`
+            );
+          } catch (err) {
+            console.error("[Audio] Exception in onstatechange:", err);
+          }
+        };
+      }
+    } catch (err) {
+      console.error("[Audio] Could not set up state change handler:", err);
     }
-
   } catch (error) {
     console.error("Failed to initialize AudioContext:", error);
     return;
@@ -636,6 +749,43 @@ function initAudio() {
   // Expose via SORSARI namespace for other scripts
   SORSARI.audioElement = audioElement;
   SORSARI.analyser = analyser;
+
+  // Set media session metadata for "now playing" display
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'Into Twilight',
+      artist: 'Sorsari',
+      album: 'Breaking The Surface',
+      artwork: [
+        { src: 'SOSARI-BTS-FINAL-V4.JPG', sizes: 'any', type: 'image/jpeg' }
+      ]
+    });
+  }
+
+  // Beep sound for UI interactions - use Web Audio API for instant playback
+  let beepBuffer = null;
+  fetch("beep.mp3")
+    .then((response) => response.arrayBuffer())
+    .then((arrayBuffer) => audioContext.decodeAudioData(arrayBuffer))
+    .then((audioBuffer) => {
+      beepBuffer = audioBuffer;
+      console.log("[Beep] Sound decoded and ready for instant playback");
+    })
+    .catch((e) => console.error("[Beep] Error loading sound:", e));
+
+  SORSARI.beepSound = {
+    play: function () {
+      if (beepBuffer) {
+        const source = audioContext.createBufferSource();
+        const gainNode = audioContext.createGain();
+        source.buffer = beepBuffer;
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        gainNode.gain.value = 0.25;
+        source.start(0, 0.02);
+      }
+    },
+  };
 
   // Connect main audio through limiter to analyser and output
   audioSource = audioContext.createMediaElementSource(audioElement);
@@ -685,15 +835,204 @@ function initAudio() {
    * Handle audio interruptions (phone calls, notifications, etc.)
    * Critical for mobile devices where audio can be interrupted by system events
    */
-  
+
   // Track if audio was interrupted (vs user-paused)
   let wasInterrupted = false;
+  let pausedOverlay = null;
+  let pausedDimmer = null;
+  let pausedHint = null;
+  let pausedClassicHint = null;
+  let pausedAberration = null;
+
+  // Create paused overlay + dimmer
+  function showPausedOverlay() {
+    // Only show if audio is reactive (song has started)
+    if (!audioReactive) return;
+
+    const isMobileCheck = SORSARI.isMobile || false;
+
+    // Remove any existing elements
+    if (pausedOverlay) pausedOverlay.remove();
+    if (pausedDimmer) pausedDimmer.remove();
+    if (pausedHint) pausedHint.remove();
+    if (pausedClassicHint) pausedClassicHint.remove();
+    if (pausedAberration) pausedAberration.remove();
+
+    // Chromatic aberration layer (behind dimmer)
+    pausedAberration = document.createElement("div");
+    pausedAberration.id = "paused-aberration";
+    pausedAberration.style.cssText = `
+      position: fixed;
+      inset: 0;
+      z-index: 10004; /* Below dimmer (10005) */
+      pointer-events: none;
+      background:
+        linear-gradient(120deg, rgba(255, 0, 128, 0.08), rgba(0, 255, 255, 0.04)),
+        linear-gradient(300deg, rgba(0, 128, 255, 0.08), rgba(255, 255, 0, 0.03));
+      mix-blend-mode: screen;
+      opacity: 0.75;
+      filter: saturate(1.15) contrast(1.05) blur(0.35px);
+    `;
+    document.body.appendChild(pausedAberration);
+
+    // Background dimmer (sits under UI)
+    pausedDimmer = document.createElement("div");
+    pausedDimmer.id = "paused-dimmer";
+    pausedDimmer.style.cssText = `
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 10005; /* Above center model (10002), below UI credits (10011) */
+      pointer-events: none;
+      opacity: 0.7;
+      transition: opacity 0.25s ease;
+    `;
+    document.body.appendChild(pausedDimmer);
+
+    // Centered PAUSED text (matches touch-to-start styling)
+    pausedOverlay = document.createElement("div");
+    pausedOverlay.id = "paused-overlay";
+    pausedOverlay.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10006; /* Above dimmer (10005) */
+      pointer-events: auto;
+      font-family: "Tiny5", monospace;
+      font-size: 12px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.9);
+      text-align: center;
+      letter-spacing: 1px;
+      animation: touchToStartFade 0.25s forwards;
+      text-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+      opacity: 0.7;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    `;
+
+    // PAUSED text
+    const pausedText = document.createElement("div");
+    pausedText.textContent = "PAUSED";
+    pausedOverlay.appendChild(pausedText);
+
+    // Touch to resume hint (mobile only)
+    if (isMobileCheck) {
+      const touchHint = document.createElement("div");
+      touchHint.style.fontSize = "11px";
+      touchHint.style.opacity = "0.85";
+      touchHint.textContent = "(Touch to resume)";
+      pausedOverlay.appendChild(touchHint);
+    }
+
+    pausedOverlay.style.cursor = "pointer";
+    pausedOverlay.addEventListener("click", resumeFromPausedOverlay);
+    pausedOverlay.addEventListener(
+      "touchstart",
+      function (e) {
+        resumeFromPausedOverlay();
+      },
+      { passive: true }
+    );
+    document.body.appendChild(pausedOverlay);
+
+    // Hints only on desktop
+    if (!isMobileCheck) {
+      // Bottom-left hint
+      pausedHint = document.createElement("div");
+      pausedHint.id = "paused-hint";
+      pausedHint.style.cssText = `
+        position: fixed;
+        left: 1rem;
+        bottom: 1rem;
+        z-index: 10006;
+        pointer-events: none;
+        font-family: "Tiny5", monospace;
+        font-size: 10px;
+        font-weight: 400;
+        color: rgba(255, 255, 255, 0.85);
+        letter-spacing: 0.5px;
+        text-shadow: 0 0 5px rgba(0, 0, 0, 0.35);
+        animation: touchToStartFade 0.125s forwards;
+        animation-delay: 4s;
+        opacity: 0;
+      `;
+      pausedHint.textContent = "Press F to go fullscreen!";
+      document.body.appendChild(pausedHint);
+
+      // Bottom-right classic toggle hint (delayed)
+      pausedClassicHint = document.createElement("div");
+      pausedClassicHint.id = "paused-classic-hint";
+      pausedClassicHint.style.cssText = `
+        position: fixed;
+        right: 1rem;
+        bottom: 1rem;
+        z-index: 10006;
+        pointer-events: none;
+        font-family: "Tiny5", monospace;
+        font-size: 10px;
+        font-weight: 400;
+        color: rgba(255, 255, 255, 0.85);
+        letter-spacing: 0.5px;
+        text-shadow: 0 0 5px rgba(0, 0, 0, 0.35);
+        animation: touchToStartFade 0.25s forwards;
+        animation-delay: 30s;
+        opacity: 0;
+      `;
+      pausedClassicHint.textContent = 'Type "CLASSIC" to toggle a surprise';
+      document.body.appendChild(pausedClassicHint);
+    }
+  }
+
+  // Remove paused overlay + dimmer
+  function hidePausedOverlay() {
+    if (pausedOverlay) {
+      pausedOverlay.remove();
+      pausedOverlay = null;
+    }
+    if (pausedDimmer) {
+      pausedDimmer.remove();
+      pausedDimmer = null;
+    }
+    if (pausedAberration) {
+      pausedAberration.remove();
+      pausedAberration = null;
+    }
+    if (pausedHint) {
+      pausedHint.remove();
+      pausedHint = null;
+    }
+    if (pausedClassicHint) {
+      pausedClassicHint.remove();
+      pausedClassicHint = null;
+    }
+  }
+
+  function resumeFromPausedOverlay() {
+    try {
+      if (audioContext && audioContext.state === "suspended") {
+        audioContext.resume().catch(() => {});
+      }
+      if (audioElement) {
+        audioElement.play().catch(() => {});
+      }
+      if (!isMobile) {
+        if (drumsElement) drumsElement.play().catch(() => {});
+        if (instrumentsElement) instrumentsElement.play().catch(() => {});
+      }
+    } catch (_) {}
+    globalPauseState.paused = false; // Also unpause animations
+    hidePausedOverlay();
+  }
 
   // Audio element got paused (could be user action or system interruption)
   audioElement.addEventListener("pause", () => {
     if (audioReactive && !audioElement.ended) {
       wasInterrupted = true;
       console.log("[Audio] Audio paused (possible interruption)");
+      showPausedOverlay();
     }
   });
 
@@ -704,10 +1043,11 @@ function initAudio() {
 
   // Audio element resumed playing after interruption
   audioElement.addEventListener("play", () => {
+    hidePausedOverlay();
     if (wasInterrupted) {
       console.log("[Audio] Audio resumed after interruption");
       wasInterrupted = false;
-      
+
       // Ensure audio context is also resumed
       if (audioContext && audioContext.state === "suspended") {
         audioContext.resume().catch((err) => {
@@ -727,7 +1067,9 @@ function initAudio() {
     console.error("[Audio] Audio element error:", e);
     const error = audioElement.error;
     if (error) {
-      console.error(`[Audio] Error code: ${error.code}, message: ${error.message}`);
+      console.error(
+        `[Audio] Error code: ${error.code}, message: ${error.message}`
+      );
     }
   });
 
@@ -739,8 +1081,17 @@ function initAudio() {
       return;
     }
 
-    if (audioContext.state === "suspended") {
-      audioContext.resume();
+    try {
+      if (audioContext && audioContext.state === "suspended") {
+        audioContext.resume().catch((err) => {
+          console.warn("[Audio] Could not resume in playAllTracks:", err);
+        });
+      }
+    } catch (err) {
+      console.error(
+        "[Audio] Exception resuming audio context in playAllTracks:",
+        err
+      );
     }
 
     // Start all audio tracks
@@ -757,34 +1108,61 @@ function initAudio() {
 
     Promise.all(playPromises)
       .then(function () {
-        audioReactive = true;
-        // Trigger glow fade-in animation when music starts
-        document.body.classList.add("glow-active");
-        
-        // Hide and remove touch-to-start container to prevent blocking interactions
-        const touchToStartContainer = document.getElementById("touch-to-start-container");
-        if (touchToStartContainer) {
-          touchToStartContainer.classList.add("hidden");
-          // Remove from DOM after fade animation completes (0.5s)
-          setTimeout(() => {
-            touchToStartContainer.remove();
-            console.log("[Touch-to-start] Container removed from DOM");
-          }, 500);
+        try {
+          audioReactive = true;
+          // Trigger glow fade-in animation when music starts
+          document.body.classList.add("glow-active");
+
+          // Hide and remove touch-to-start container to prevent blocking interactions
+          const touchToStartContainer = document.getElementById(
+            "touch-to-start-container"
+          );
+          if (touchToStartContainer) {
+            touchToStartContainer.classList.add("hidden");
+            // Remove from DOM after fade animation completes (0.5s)
+            setTimeout(() => {
+              try {
+                touchToStartContainer.remove();
+                console.log("[Touch-to-start] Container removed from DOM");
+              } catch (err) {
+                console.error(
+                  "[Touch-to-start] Error removing container:",
+                  err
+                );
+              }
+            }, 500);
+          }
+
+          console.log("All tracks playing in sync:", {
+            main: true,
+            drums: !isMobile && !!drumsElement,
+            instruments: !isMobile && !!instrumentsElement,
+          });
+        } catch (err) {
+          console.error("[Audio] Exception in playAllTracks success:", err);
         }
-        
-        console.log("All tracks playing in sync:", {
-          main: true,
-          drums: !isMobile && !!drumsElement,
-          instruments: !isMobile && !!instrumentsElement,
-        });
       })
       .catch(function (error) {
-        console.error("Playback failed:", error);
-        // Try to play main audio at least
-        audioElement.play().then(function () {
-          audioReactive = true;
-          console.log("Main audio playing (stems failed)");
-        });
+        try {
+          console.error("[Audio] Playback failed:", error);
+          // Try to play main audio at least
+          if (audioElement) {
+            audioElement
+              .play()
+              .then(function () {
+                audioReactive = true;
+                console.log("[Audio] Main audio playing (stems failed)");
+              })
+              .catch((err) => {
+                console.error("[Audio] Could not play main audio:", err);
+              });
+          }
+        } catch (err) {
+          console.error(
+            "[Audio] Exception in playAllTracks error handler:",
+            err
+          );
+        }
       });
   }
 
@@ -835,11 +1213,17 @@ function initAudio() {
   const touchToStartContainer = document.getElementById(
     "touch-to-start-container"
   );
+
   if (touchToStartContainer) {
     touchToStartContainer.addEventListener("click", function () {
       if (!audioReactive && assetsLoaded) {
-        console.log("Touch-to-start clicked - starting playback");
-        playAllTracks();
+        console.log("Touch-to-start clicked - starting playback in 1s");
+        if (SORSARI.beepSound) {
+          SORSARI.beepSound.play();
+        }
+        setTimeout(() => {
+          playAllTracks();
+        }, 300);
       }
     });
 
@@ -849,13 +1233,34 @@ function initAudio() {
       function (e) {
         e.preventDefault();
         if (!audioReactive && assetsLoaded) {
-          console.log("Touch-to-start touched - starting playback");
-          playAllTracks();
+          console.log("Touch-to-start touched - starting playback in 1s");
+          if (SORSARI.beepSound) {
+            SORSARI.beepSound.play();
+          }
+          setTimeout(() => {
+            playAllTracks();
+          }, 1000);
         }
       },
       { passive: false }
     );
   }
+
+  // Add beep sound to credit links
+  const creditLinks = document.querySelectorAll(
+    "#sorsari-credit a, #yedgar-credit a, #terrorhythm-credit a"
+  );
+  console.log("[Beep] Found", creditLinks.length, "credit links");
+  creditLinks.forEach((link) => {
+    link.addEventListener("click", function (e) {
+      console.log("[Beep] Credit link clicked");
+      if (SORSARI.beepSound) {
+        SORSARI.beepSound.play();
+      } else {
+        console.log("[Beep] beepSound not initialized");
+      }
+    });
+  });
 
   // Override the skipToTime function to sync all three audio tracks
   SORSARI.skipToTime = function (seconds) {
@@ -897,6 +1302,11 @@ function initAudio() {
     console.log(
       "Replaying song - fading out and refreshing page with autoplay"
     );
+
+    // Play beep sound
+    if (SORSARI.beepSound) {
+      SORSARI.beepSound.play();
+    }
 
     // Set flag in sessionStorage to enable autoplay after reload
     // This persists through the page refresh and allows autoplay on mobile
@@ -2342,6 +2752,13 @@ function init() {
       window.addEventListener("keydown", function (e) {
         if (e.code === "Space") {
           e.preventDefault(); // Prevent page scroll
+
+          // Prevent spacebar from replaying song after it ends
+          if (audioElement && audioElement.ended) {
+            console.log("Song ended - spacebar disabled");
+            return;
+          }
+
           globalPauseState.paused = !globalPauseState.paused;
 
           // Pause or resume all audio tracks
@@ -4457,29 +4874,48 @@ function disableTerrorModelKeyboard() {
     console.warn("[Keyboard] Terror model-viewer not found in DOM");
     return;
   }
-  
+
   // Set tabindex to prevent tab focus
   terrorModelViewer.setAttribute("tabindex", "-1");
   terrorModelViewer.style.pointerEvents = "none"; // Disable mouse interaction too
   terrorModelViewer.style.pointerEvents = "auto"; // Re-enable for visual interaction only
-  
+
   // Prevent focus event
-  terrorModelViewer.addEventListener("focus", (e) => {
-    e.preventDefault();
-    document.body.focus();
-  }, true);
-  
+  terrorModelViewer.addEventListener(
+    "focus",
+    (e) => {
+      e.preventDefault();
+      document.body.focus();
+    },
+    true
+  );
+
   // Block when it tries to gain focus through any means
-  terrorModelViewer.addEventListener("focusin", (e) => {
-    e.preventDefault();
-    document.body.focus();
-  }, true);
-  
+  terrorModelViewer.addEventListener(
+    "focusin",
+    (e) => {
+      e.preventDefault();
+      document.body.focus();
+    },
+    true
+  );
+
   // Prevent blur/mousedown from allowing focus
-  terrorModelViewer.addEventListener("mousedown", (e) => {
-    e.preventDefault();
-    document.body.focus();
-  }, true);
+  terrorModelViewer.addEventListener(
+    "mousedown",
+    (e) => {
+      e.preventDefault();
+      document.body.focus();
+    },
+    true
+  );
+
+  // Play beep sound on double-click (opens link)
+  terrorModelViewer.addEventListener("dblclick", () => {
+    if (SORSARI.beepSound) {
+      SORSARI.beepSound.play();
+    }
+  });
 }
 
 // Run when DOM is ready
@@ -4490,9 +4926,46 @@ if (document.readyState === "loading") {
 }
 
 // Also block keyboard input globally for terror model
-document.addEventListener("keydown", (e) => {
-  if (document.activeElement?.id === "terror-model-viewer") {
-    e.preventDefault();
-    document.body.focus();
+document.addEventListener(
+  "keydown",
+  (e) => {
+    if (document.activeElement?.id === "terror-model-viewer") {
+      e.preventDefault();
+      document.body.focus();
+    }
+  },
+  true
+);
+
+// =====================
+// SPIN EASTER EGG - Type "SPIN" to spin the center model
+// =====================
+(function() {
+  const isMobileSpin = SORSARI.isMobile || false;
+  if (isMobileSpin) return; // Desktop only
+  
+  let spinBuffer = "";
+  let spinTimeout;
+  
+  document.addEventListener("keydown", (e) => {
+    if (e.key.length !== 1) return;
+    spinBuffer += e.key.toLowerCase();
+    if (spinBuffer.length > 4) {
+      spinBuffer = spinBuffer.slice(-4);
+    }
+    if (spinBuffer === "spin") {
+      triggerCenterModelSpin();
+      spinBuffer = "";
+    }
+    clearTimeout(spinTimeout);
+    spinTimeout = setTimeout(() => {
+      spinBuffer = "";
+    }, 2000);
+  });
+  
+  function triggerCenterModelSpin() {
+    if (SORSARI.triggerCenterModelSpin) {
+      SORSARI.triggerCenterModelSpin();
+    }
   }
-}, true);
+})();

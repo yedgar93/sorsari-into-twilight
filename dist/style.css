@@ -224,16 +224,68 @@ body.glow-active::after {
   left: 50%;
   transform: translateX(-50%);
   font-family: "Tiny5", monospace;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.77);
   text-align: center;
   letter-spacing: 1px;
-  z-index: 10000;
+  z-index: 10003;
   pointer-events: auto;
-  opacity: 0.8;
+  opacity: 0.7;
   transition: opacity 0.0125s ease-out;
-  cursor: pointer;
+  /* cursor: pointer; */
+  letter-spacing: 0.125px;
+  line-height: 1.4;
+}
+
+#coded-by-credit:hover {
+  z-index: 10005;
+}
+
+/* SORSARI in Pixelify Sans */
+#sorsari-credit {
+  font-family: "Pixelify Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* YEDGAR in Jacquard 12 */
+#yedgar-credit {
+  font-family: "Jacquard 12", serif;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+
+#sorsari-credit a,
+#yedgar-credit a,
+#terrorhythm-credit a {
+  color: #fff;
+  letter-spacing: 0px;
+  text-decoration: none;
+  display: inline-block;
+}
+
+#sorsari-credit a:hover,
+#yedgar-credit a:hover,
+#terrorhythm-credit a:hover {
+  font-weight: BOLD;
+  animation: pulse 1s infinite;
+  z-index: 10005;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    color: #fff;
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.03);
+    color: #f1e5f9;
+    opacity: 1;
+  }
 }
 
 /* Fade out when song starts */
@@ -256,6 +308,11 @@ body.glow-active #coded-by-credit {
   visibility: hidden; /* Hidden until loading completes */
 }
 
+#touch-to-start-container:hover {
+  opacity: 0.8;
+  color: #f1e5f9;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
 /* Show touch-to-start when loading is done */
 #touch-to-start-container.visible {
   visibility: visible;
@@ -272,7 +329,7 @@ body.glow-active #coded-by-credit {
   text-align: center;
   letter-spacing: 1px;
   opacity: 0;
-  animation: touchToStartFade 0.125s forwards;
+  animation: touchToStartFade 0.25s forwards;
   animation-delay: 1s;
   height: 12px;
   display: flex;
@@ -285,7 +342,7 @@ body.glow-active #coded-by-credit {
   align-items: center;
   gap: 8px;
   opacity: 0;
-  animation: touchToStartFade 0.125s forwards;
+  animation: touchToStartFade 0.25s forwards;
   animation-delay: 1s;
   height: 12px;
 }
@@ -303,7 +360,7 @@ body.glow-active #coded-by-credit {
   width: 14px;
   height: 14px;
   position: relative;
-  opacity: 0.6;
+  opacity: 0.77;
 }
 
 /* Volume SVGs */
@@ -527,7 +584,7 @@ img {
   border-radius: 8px;
   padding: 0;
   z-index: 10010;
-  font-family: monospace;
+  font-family: arial, sans-serif;
   color: white;
   min-width: 200px;
   max-width: 90vw;
@@ -592,8 +649,9 @@ img {
   padding: 6px 10px;
   border-radius: 4px;
   cursor: pointer;
-  font-family: monospace;
-  font-size: 9px;
+  font-weight: 300;
+
+  font-size: 12px;
   transition: all 0.2s ease;
   font-weight: normal;
   margin-bottom: 5px;
@@ -754,6 +812,26 @@ model-viewer::part(bar) {
   display: none !important;
 }
 
+/* Prevent model-viewer from being targeted/focused */
+#model-viewer,
+#terror-model-viewer {
+  outline: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-focus-ring-color: transparent;
+  user-select: none;
+}
+
+#model-viewer:focus,
+#model-viewer:focus-visible,
+#model-viewer:active,
+#terror-model-viewer:focus,
+#terror-model-viewer:focus-visible,
+#terror-model-viewer:active {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 /* Background layers */
 /* Stars fade wrapper - JavaScript-controlled fade (3:20 to 3:46.5) */
 #stars-fade-wrapper {
@@ -863,7 +941,7 @@ model-viewer::part(bar) {
   right: -25px;
   width: 150px;
   height: 150px;
-  pointer-events: auto;
+  pointer-events: none;
   z-index: 10005;
   opacity: 0;
   transition: height 0.5s ease, width 0.5s ease;

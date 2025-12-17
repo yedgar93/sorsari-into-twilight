@@ -9,10 +9,59 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>SORSARI - Breaking The Surface</title>
+    <meta
+      name="description"
+      content="SORSARI - Breaking The Surface. An immersive audio-visual experience."
+    />
+
+    <!-- Open Graph / Social Sharing -->
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:url"
+      content="https://sorsari-breaking-the-surface.netlify.app/"
+    />
+    <meta property="og:title" content="SORSARI - Breaking The Surface" />
+    <meta
+      property="og:description"
+      content="Immersive audio-visual experience"
+    />
+    <meta
+      property="og:image"
+      content="https://sorsari-breaking-the-surface.netlify.app/SOSARI-BTS-FINAL-V4.JPG"
+    />
+    <meta property="og:image:width" content="564" />
+    <meta property="og:image:height" content="564" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SORSARI - Breaking The Surface" />
+    <meta
+      name="twitter:description"
+      content="An immersive audio-visual experience."
+    />
+    <meta
+      name="twitter:image"
+      content="https://sorsari-breaking-the-surface.netlify.app/SOSARI-BTS-FINAL-V4.JPG"
+    />
+    -twilight.netlify.app/SOSARI-BTS-FINAL-V4.JPG" />
+
+    <!-- Resource Hints for Performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://ajax.googleapis.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+    <link rel="preload" href="dist/script.js" as="script" />
+    <link rel="preload" href="dist/style.css" as="style" />
     <link
       href="https://fonts.googleapis.com/css2?family=Tiny5&display=block"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Jacquard+12&display=block"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=block"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="dist/style.css" />
@@ -44,12 +93,22 @@
       integrity="sha384-ycxtgj7aPUpK6OvsYarejYrITzqdS2Q6xoKkgnKMFoCyS5lQhW2h0OPCeInjM6qi"
       crossorigin="anonymous"
     ></script>
-    <script
-      type="text/javascript"
-      src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.1/vanilla-tilt.min.js"
-      integrity="sha384-0k1dj5tm+KUH/4vkNk/i90XsjDA8Ltmt+ybcrFoH4t0dgv/WZsPpVBnkhcroX8UL"
-      crossorigin="anonymous"
-    ></script>
+    <!-- Load vanilla-tilt only on desktop (not needed on mobile) -->
+    <script>
+      if (
+        !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        )
+      ) {
+        const script = document.createElement("script");
+        script.src =
+          "https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.1/vanilla-tilt.min.js";
+        script.integrity =
+          "sha384-0k1dj5tm+KUH/4vkNk/i90XsjDA8Ltmt+ybcrFoH4t0dgv/WZsPpVBnkhcroX8UL";
+        script.crossOrigin = "anonymous";
+        document.head.appendChild(script);
+      }
+    </script>
   </head>
   <body>
     <!-- Debug Window (hidden by default) -->
@@ -199,7 +258,21 @@
     </div>
 
     <!-- Coded by credit at bottom -->
-    <div id="coded-by-credit">Coded by YEDGAR</div>
+    <div id="coded-by-credit">
+      Music by
+      <span id="sorsari-credit"
+        ><a href="http://soundcloud.com/sorsari" target="_blank"
+          >SORSARI</a
+        ></span
+      >
+      <br />
+      Interactive experience by
+      <span id="yedgar-credit"
+        ><a href="https://soundcloud.com/yedgar" target="_blank"
+          >Yedgar</a
+        ></span
+      >
+    </div>
 
     <!-- Touch to start text (appears after loading completes) -->
     <div id="touch-to-start-container">
@@ -340,6 +413,7 @@
           max-camera-orbit="30deg 90deg auto"
           field-of-view="30deg"
           camera-controls
+          disable-pan
           disable-zoom
           disable-tap
           keyboard-controls="false"
@@ -379,6 +453,7 @@
       min-camera-orbit="auto auto 150%"
       max-camera-orbit="auto auto 150%"
       field-of-view="35deg"
+      disable-pan
       disable-zoom
       disable-tap
       keyboard-controls="false"

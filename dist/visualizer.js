@@ -1,3 +1,5 @@
+/// <reference path="./types.d.ts" />
+
 // Audio Visualizer - Oscilloscope style waveform (Performance Optimized)
 (function () {
   const visualizerCanvas = document.getElementById("visualizer-canvas");
