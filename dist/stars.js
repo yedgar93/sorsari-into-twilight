@@ -212,7 +212,7 @@
   let tiltOffsetX = 0;
   let tiltOffsetY = 0;
   const tiltSensitivity = 5.0;
-  const tiltDisplay = document.getElementById("tilt-display");
+  const tiltDisplay = document.getElementById("tilt-display"); // Cached to avoid repeated queries in deviceorientation handler
   let motionEventCount = 0;
 
   // Listen for device motion (gyroscope)
@@ -240,10 +240,10 @@
 
     // Auto-enable on Android (no permission needed)
     if (typeof DeviceOrientationEvent.requestPermission !== "function") {
-      const btn = document.getElementById("enable-motion-btn");
-      if (btn) {
-        btn.textContent = "Motion Active ✓";
-        btn.style.backgroundColor = "#4CAF50";
+      const enableMotionBtn = document.getElementById("enable-motion-btn"); // Cached query
+      if (enableMotionBtn) {
+        enableMotionBtn.textContent = "Motion Active ✓";
+        enableMotionBtn.style.backgroundColor = "#4CAF50";
       }
     }
   } else {

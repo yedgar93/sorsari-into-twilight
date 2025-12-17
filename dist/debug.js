@@ -222,7 +222,7 @@
   // Console log capture for debug menu
   const consoleLogQueue = [];
   const maxLogs = 50;
-  const debugLogElement = document.getElementById("debug-log");
+  const debugLogElement = document.getElementById("debug-log"); // Cached to avoid repeated queries in captureLog()
 
   // Intercept console methods
   const originalLog = console.log;

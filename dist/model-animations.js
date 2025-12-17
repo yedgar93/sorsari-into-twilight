@@ -44,6 +44,7 @@
   // =====================
   // CENTER MODEL CAMERA
   // =====================
+  // Cache model viewers to avoid repeated queries during animation loops
   const modelViewer = document.querySelector("#model-viewer");
   const modelViewerWrapper = document.querySelector("#model-viewer-wrapper");
   let time = 0;

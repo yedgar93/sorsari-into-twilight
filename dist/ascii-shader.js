@@ -105,8 +105,8 @@ function startASCII() {
   tempCtx = tempCanvas.getContext("2d");
 
   canvasLayerMap = {};
-  const allCanvases = document.querySelectorAll("canvas");
-  allCanvases.forEach((canvas) => {
+  let cachedCanvases = document.querySelectorAll("canvas"); // Cache canvases to avoid repeated queries
+  cachedCanvases.forEach((canvas) => {
     if (canvas === asciiCanvas) return;
     if (canvas.id === "stars-canvas" || canvas.className.includes("stars")) {
       canvasLayerMap[canvas] = "stars";
@@ -246,8 +246,7 @@ function asciiLoop() {
 
     // Fallback: try to read from canvas directly
     if (!imageData) {
-      const allCanvases = document.querySelectorAll("canvas");
-      if (allCanvases.length > 0) {
+      if (cachedCanvases.length > 0) {
         tempCanvas.width = window.innerWidth;
         tempCanvas.height = window.innerHeight;
 
@@ -255,7 +254,7 @@ function asciiLoop() {
         tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
         // Draw all canvases in order (including stars canvas)
-        allCanvases.forEach((canvas) => {
+        cachedCanvases.forEach((canvas) => {
           try {
             // Skip the ASCII canvas itself and model ASCII canvas
             if (canvas === asciiCanvas || canvas === modelAsciiCanvas) return;

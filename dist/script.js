@@ -4439,3 +4439,50 @@ THREE.BAS.StandardAnimationMaterial.prototype._concatFragmentShader =
       "}",
     ].join("\n");
   };
+
+// =====================
+// DISABLE KEYBOARD CONTROLS ON TERROR MODEL-VIEWER
+// =====================
+// Wait for DOM to be ready, then prevent terror model from being tab-targeted
+function disableTerrorModelKeyboard() {
+  const terrorModelViewer = document.getElementById("terror-model-viewer");
+  if (!terrorModelViewer) return;
+  
+  // Set tabindex to prevent tab focus
+  terrorModelViewer.setAttribute("tabindex", "-1");
+  terrorModelViewer.style.pointerEvents = "none"; // Disable mouse interaction too
+  terrorModelViewer.style.pointerEvents = "auto"; // Re-enable for visual interaction only
+  
+  // Prevent focus event
+  terrorModelViewer.addEventListener("focus", (e) => {
+    e.preventDefault();
+    document.body.focus();
+  }, true);
+  
+  // Block when it tries to gain focus through any means
+  terrorModelViewer.addEventListener("focusin", (e) => {
+    e.preventDefault();
+    document.body.focus();
+  }, true);
+  
+  // Prevent blur/mousedown from allowing focus
+  terrorModelViewer.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    document.body.focus();
+  }, true);
+}
+
+// Run when DOM is ready
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", disableTerrorModelKeyboard);
+} else {
+  disableTerrorModelKeyboard();
+}
+
+// Also block keyboard input globally for terror model
+document.addEventListener("keydown", (e) => {
+  if (document.activeElement?.id === "terror-model-viewer") {
+    e.preventDefault();
+    document.body.focus();
+  }
+}, true);
