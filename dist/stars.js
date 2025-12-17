@@ -339,6 +339,13 @@
 
   // Animate stars
   function animateStars() {
+    // Check if music is paused (globalPauseState is exposed from script.js)
+    if (window.globalPauseState && window.globalPauseState.paused) {
+      // Skip animation but keep the loop running
+      requestAnimationFrame(animateStars);
+      return;
+    }
+
     const currentTime = SORSARI.musicTime || 0;
     const isDropActive =
       (currentTime >= firstDropTime && currentTime < breakdownTime) ||
@@ -526,6 +533,9 @@
     let chromaticOffset = 0;
     let chromaticIntensityMultiplier = 1.0;
 
+    // Check if dither mode is disabling chromatic aberration
+    const ditherDisablingChromatic = window.ditherChromaticAberrationDisabled;
+
     // Check if we're in fade-out section (3:10 to 3:26)
     if (
       currentTime >= chromaticFadeOutStart &&
@@ -543,6 +553,7 @@
 
     if (
       !isMobile &&
+      !ditherDisablingChromatic &&
       chromaticAberrationEnabled &&
       currentTime >= chromaticAberrationStartTime &&
       currentTime < chromaticAberrationEndTime
@@ -558,6 +569,7 @@
         chromaticIntensityMultiplier;
     } else if (
       !isMobile &&
+      !ditherDisablingChromatic &&
       chromaticAberrationEnabled &&
       currentTime >= invertBackTime
     ) {
@@ -581,12 +593,13 @@
       wrapperBlurAmount > 0 ? `blur(${wrapperBlurAmount}px)` : "none";
 
     // Apply screen shake to stars canvas during drops
+    const ditherDisablingScreenShake = window.ditherScreenShakeDisabled;
     const isInFirstDrop =
       currentTime >= firstDropTime && currentTime < firstDropShakeEndTime;
     const isInSecondDrop =
       currentTime >= secondDropTime && currentTime < secondDropShakeEndTime;
 
-    if (isInFirstDrop || isInSecondDrop) {
+    if (!ditherDisablingScreenShake && (isInFirstDrop || isInSecondDrop)) {
       const timeSinceDropStart = isInFirstDrop
         ? currentTime - firstDropTime
         : currentTime - secondDropTime;

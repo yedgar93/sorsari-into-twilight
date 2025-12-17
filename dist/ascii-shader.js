@@ -64,9 +64,21 @@ function toggleASCII() {
   asciiActive = !asciiActive;
   if (asciiActive) {
     startASCII();
+    // Reduce Three.js renderer quality to 18% for performance
+    if (window.root && window.root.renderer) {
+      window.root.renderer.setPixelRatio(0.18);
+      console.log("Three.js pixel ratio reduced to 18%");
+    }
     console.log("ASCII mode enabled!");
   } else {
     stopASCII();
+    // Restore Three.js renderer quality to 50% (original)
+    if (window.root && window.root.renderer) {
+      window.root.renderer.setPixelRatio(
+        Math.min(window.devicePixelRatio, 1.25) * 0.5
+      );
+      console.log("Three.js pixel ratio restored to 50%");
+    }
     console.log("ASCII mode disabled!");
   }
 }

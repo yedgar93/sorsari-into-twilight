@@ -137,6 +137,8 @@ let failsafeRadialBlurPass = null;
 
 // Global pause state for failsafe
 let globalPauseState = { paused: false };
+// Expose to window so other scripts can check pause state
+window.globalPauseState = globalPauseState;
 
 // DOM update batching - collect all DOM changes and apply them once per frame
 let pendingDOMUpdates = {
@@ -600,16 +602,21 @@ function initAudio() {
 
   // Fallback for autoplay prevention (especially on mobile)
   // On mobile, autoplay is blocked by browser policy, so we need a user gesture
-  document.addEventListener(
-    "click",
-    function () {
-      if (!audioReactive) {
+  document.addEventListener("click", function handleUserClick() {
+    if (!audioReactive) {
+      // Only try to play if assets are loaded
+      if (assetsLoaded) {
         console.log("User interaction detected - starting playback");
         playAllTracks();
+        // Remove listener after successful playback attempt
+        document.removeEventListener("click", handleUserClick);
+      } else {
+        console.log(
+          "User clicked but assets still loading - will retry when ready"
+        );
       }
-    },
-    { once: true }
-  );
+    }
+  });
 
   // Override the skipToTime function to sync all three audio tracks
   SORSARI.skipToTime = function (seconds) {
@@ -2065,18 +2072,27 @@ function init() {
       { passive: false }
     );
 
-    // Keyboard controls (P = pause, C = camera controls)
+    // Keyboard controls (Spacebar = pause/resume)
     // Disabled on mobile to save CPU
     if (!isMobile) {
-      window.addEventListener("keyup", function (e) {
-        if (e.key === "p" || e.key === "P") {
+      window.addEventListener("keydown", function (e) {
+        if (e.code === "Space") {
+          e.preventDefault(); // Prevent page scroll
           globalPauseState.paused = !globalPauseState.paused;
-        }
-        if (e.key === "c" || e.key === "C") {
-          if (root.controls) {
-            root.controls.enabled = !root.controls.enabled;
+
+          // Pause or resume all audio tracks
+          if (globalPauseState.paused) {
+            // Pause all tracks
+            if (audioElement) audioElement.pause();
+            if (drumsElement) drumsElement.pause();
+            if (instrumentsElement) instrumentsElement.pause();
+            console.log("Music paused");
           } else {
-            root.createOrbitControls();
+            // Resume all tracks
+            if (audioElement) audioElement.play();
+            if (drumsElement) drumsElement.play();
+            if (instrumentsElement) instrumentsElement.play();
+            console.log("Music resumed");
           }
         }
       });
@@ -2313,6 +2329,13 @@ function THREERoot(params) {
 }
 THREERoot.prototype = {
   createOrbitControls: function () {
+    // Check if OrbitControls is available
+    if (typeof THREE.OrbitControls === "undefined") {
+      console.warn(
+        "OrbitControls not loaded. Please include the OrbitControls library."
+      );
+      return;
+    }
     this.controls = new THREE.OrbitControls(
       this.camera,
       this.renderer.domElement

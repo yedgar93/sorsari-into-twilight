@@ -81,6 +81,12 @@
 
     const currentTime = SORSARI.musicTime || 0;
 
+    // Enable interaction after 10 seconds
+    if (!interactionEnabled && currentTime >= interactionEnableTime) {
+      interactionEnabled = true;
+      console.log("Model viewer interaction enabled");
+    }
+
     let yaw, pitch, distance;
 
     // If user is interacting or holding position, don't update camera from timeline
@@ -183,8 +189,16 @@
   // =====================
   // CENTER MODEL USER INTERACTION
   // =====================
+  // Disable interaction until 10 seconds into the song
+  const interactionEnableTime = 10; // seconds
+  let interactionEnabled = false;
+
   // Detect when user starts interacting with center model
   modelViewer.addEventListener("mousedown", () => {
+    // Only allow interaction after 10 seconds
+    if (!interactionEnabled) {
+      return;
+    }
     isUserInteractingWithCenter = true;
     clearTimeout(userInteractionTimeout);
     // Allow multiple rotations (720° = 2 full rotations)
@@ -193,6 +207,10 @@
   });
 
   modelViewer.addEventListener("touchstart", () => {
+    // Only allow interaction after 10 seconds
+    if (!interactionEnabled) {
+      return;
+    }
     isUserInteractingWithCenter = true;
     clearTimeout(userInteractionTimeout);
     // Allow multiple rotations (720° = 2 full rotations)

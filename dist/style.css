@@ -235,6 +235,8 @@ body.glow-active::after {
 /* Show touch-to-start when loading is done */
 #touch-to-start-container.visible {
   visibility: visible;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 /* Line 1: TOUCH TO START */
@@ -1032,8 +1034,8 @@ model-viewer {
   }
 
   #model-viewer {
-    width: 333px !important;
-    height: 333px !important;
+    width: 290px !important;
+    height: 290px !important;
     transition: height 0.5s ease, width 0.5s ease;
   }
   .terror-model-viewer {
@@ -1072,4 +1074,17 @@ model-viewer {
     /* object-fit: cover; */
     /* object-position: right center; */
   }
+}
+
+/* Circular Visualizer */
+#bar-visualizer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0; /* under triangles (1) and model (10002) */
+  background: transparent;
+  pointer-events: none;
+  opacity: 0.15;
 }
