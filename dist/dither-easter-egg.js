@@ -16,11 +16,8 @@ let ditherResizeTimeout;
 const FRAME_SKIP = 6; // Process every 6th frame (16% CPU usage)
 const DOWNSAMPLE_SCALE = 0.3; // Downsample to 30% resolution (9x fewer pixels)
 
-// Detect mobile
-const isMobileDither =
-  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  );
+// Use centralized mobile detection from script.js
+const isMobileDither = window.SORSARI?.isMobile ?? false;
 
 if (!isMobileDither) {
   document.addEventListener("keydown", (e) => {

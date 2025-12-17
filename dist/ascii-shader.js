@@ -38,10 +38,8 @@ const MODEL_CHAR_HEIGHT = 12;
 const CHAR_COUNT = ASCII_CHARS.length - 1;
 
 // Listen for "ascii" keypress (disabled on mobile to save CPU)
-const isMobileASCII =
-  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  );
+// Use centralized mobile detection from script.js
+const isMobileASCII = window.SORSARI?.isMobile ?? false;
 
 if (!isMobileASCII) {
   document.addEventListener("keydown", (e) => {

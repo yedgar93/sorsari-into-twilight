@@ -11,12 +11,9 @@
 (function () {
   "use strict";
 
-  // Keyboard listener to show debug window when typing "debug"
-  // Disabled on mobile to save CPU
-  const isMobileDebug =
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    );
+  // Use centralized mobile detection from script.js
+  // Keyboard listener disabled on mobile to save CPU
+  const isMobileDebug = window.SORSARI?.isMobile ?? false;
 
   if (!isMobileDebug) {
     let debugKeyBuffer = "";

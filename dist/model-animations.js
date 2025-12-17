@@ -12,10 +12,8 @@
   // =====================
   // MOBILE DETECTION & COMPRESSED MODELS
   // =====================
-  const isMobile =
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    );
+  // Use centralized mobile detection from script.js
+  const isMobile = window.SORSARI?.isMobile ?? false;
 
   console.log(`[Model Viewer] Device Type: ${isMobile ? "MOBILE" : "DESKTOP"}`);
 
@@ -51,7 +49,8 @@
   let time = 0;
 
   // 360 spin variables
-  const spinTimes = [30.89, 126.9]; // Spin moments at 30.89s and 2:07.03 (127.03s)
+  // Spin events occur at specific music timestamps (see EFFECT_TIMELINE.md for details)
+  const spinTimes = [30.89, 126.9]; // Spin moments at 30.89s (0:31) and 126.9s (2:07)
   const spinDuration = 1.0; // Duration of spin in seconds
   const blendDuration = 0.125; // Duration to blend from locked to oscillating after spin
   let currentSpinIndex = -1;
@@ -69,6 +68,30 @@
   // Throttle camera animation to 30fps (every other frame)
   let cameraFrameCount = 0;
 
+  /**
+   * Camera animation state machine for center model viewer
+   * 
+   * STATE MACHINE:
+   * 1. NORMAL: Continuous oscillation with sinusoidal movement
+   * 2. SPINNING: 360° camera spin (triggered at specific music timestamps)
+   * 3. BLENDING: Smooth transition from spin back to oscillation
+   * 
+   * The animation is driven by SORSARI.musicTime (from audio playback),
+   * ensuring the camera motion stays perfectly synchronized with the music.
+   * 
+   * USER INTERACTION:
+   * - After 10 seconds into the track, users can manually rotate the camera
+   * - While interacting, timeline-based animation pauses
+   * - After release, animation freezes for 500ms then resumes
+   * 
+   * OSCILLATION PARAMETERS:
+   * - Yaw: ±20° oscillation (left-right rotation, controlled by sin(time * 0.3))
+   * - Pitch: 75° ± 15° (up-down tilt, controlled by sin(time * 0.2))
+   * - Distance: 105% ± 20% (zoom, controlled by sin(time * 0.25))
+   * 
+   * @function animateModelCamera
+   * @returns {void}
+   */
   function animateModelCamera() {
     cameraFrameCount++;
     // Only update every 2 frames (30fps instead of 60fps)
@@ -189,11 +212,35 @@
   // =====================
   // CENTER MODEL USER INTERACTION
   // =====================
+  /**
+   * User Interaction Controller for Center Model Viewer
+   * 
+   * INTERACTION FLOW:
+   * 1. Users can interact after 10 seconds (interactionEnableTime)
+   * 2. On mousedown/touchstart: Timeline animation pauses, constraints expand
+   * 3. On mouseup/touchend: Timeline animation resumes after 500ms freeze
+   * 4. After 1 second total: Camera orbit constraints restore to default
+   * 
+   * CONSTRAINT BEHAVIOR:
+   * - Default: ±30° yaw, 60-90° pitch (limited oscillation zone)
+   * - Desktop interaction: ±110° yaw, 20-160° pitch (2 full rotations)
+   * - Mobile interaction: ±720° yaw, 0-180° pitch (extreme freedom)
+   * 
+   * STATE VARIABLES:
+   * - isUserInteractingWithCenter: Currently dragging/touching
+   * - isHoldingPosition: Frozen state after interaction ends
+   * - interactionEnabled: Unlocked after 10 seconds
+   */
+  
   // Disable interaction until 10 seconds into the song
   const interactionEnableTime = 10; // seconds
   let interactionEnabled = false;
 
-  // Detect when user starts interacting with center model
+  /**
+   * Handle mouse/touch interaction start
+   * Expands camera constraints to allow free rotation
+   * Desktop: ±110° yaw | Mobile: ±720° yaw (extreme range for max flexibility)
+   */
   modelViewer.addEventListener("mousedown", () => {
     // Only allow interaction after 10 seconds
     if (!interactionEnabled) {
@@ -206,6 +253,10 @@
     modelViewer.setAttribute("max-camera-orbit", "110deg 160deg auto");
   });
 
+  /**
+   * Handle touch interaction start (mobile)
+   * Expands constraints even more for touch devices
+   */
   modelViewer.addEventListener("touchstart", () => {
     // Only allow interaction after 10 seconds
     if (!interactionEnabled) {
@@ -218,7 +269,11 @@
     modelViewer.setAttribute("max-camera-orbit", "720deg 180deg auto");
   });
 
-  // Detect when user stops interacting
+  /**
+   * Handle mouse interaction end
+   * Freezes camera for 500ms, then resumes animation
+   * Restores orbit constraints after 1 second
+   */
   modelViewer.addEventListener("mouseup", () => {
     if (isUserInteractingWithCenter) {
       isUserInteractingWithCenter = false;
@@ -236,6 +291,10 @@
     }
   });
 
+  /**
+   * Handle touch interaction end (mobile)
+   * Same behavior as mouseup but for touch events
+   */
   modelViewer.addEventListener("touchend", () => {
     if (isUserInteractingWithCenter) {
       isUserInteractingWithCenter = false;
@@ -256,22 +315,41 @@
   // =====================
   // CENTER MODEL ZOOM & FADE
   // =====================
-  const dropTime = 31.5;
+  /**
+   * ZOOM & FADE ANIMATION TIMELINE
+   * 
+   * ZOOM PHASES:
+   * 1. 0:00-0:25 (0-25s): Pixel blur ramps in (0-12px blur) + brightness ramps up
+   * 2. 0:25-1:04 (25-64s): Zoom in phase (scale 1.0 → 1.75x)
+   * 3. 1:04-1:34 (64-94s): Zoom out phase (scale 1.75x → 1.0) - BREAKDOWN happens at 1:35
+   * 4. 1:35-3:15 (95-195s): Hold steady
+   * 5. 3:15-3:35 (195-215s): Final zoom out + fade out
+   * 
+   * BRIGHTNESS:
+   * - 0:00-0:31: Ramp from 0.1 to 1.0 (full brightness at first drop)
+   * - 0:31-3:15: Hold full brightness
+   * - 3:15-3:35: Fade out to 0
+   * 
+   * PIXEL BLUR (CRT effect):
+   * - 0:00-0:15.5: Ramp from 0px to 12px (creates pixelated "glitch" effect)
+   * - 0:15.5+: Hold at 12px
+   */
+  const dropTime = 31.5; // 0:31 - first drop timestamp
   const fadeInDuration = 2.5;
-  const zoomInStart = 25;
-  const zoomInEnd = 64;
-  const zoomOutEnd = 94;
-  const maxZoomScale = 1.75;
-  const modelFadeOutStart = 205;
-  const modelFadeOutEnd = 215;
+  const zoomInStart = 25; // 0:25 - begin zooming in
+  const zoomInEnd = 64; // 1:04 - finish zooming in
+  const zoomOutEnd = 94; // 1:34 - finish zooming out (breakdown at 1:35)
+  const maxZoomScale = 1.75; // Maximum zoom level
+  const modelFadeOutStart = 205; // 3:25 - start fading out
+  const modelFadeOutEnd = 215; // 3:35 - completely faded
   const modelFadeOutDuration = modelFadeOutEnd - modelFadeOutStart;
-  const finalZoomOutStart = 195;
-  const finalZoomOutEnd = 215;
+  const finalZoomOutStart = 195; // 3:15 - start final zoom out
+  const finalZoomOutEnd = 215; // 3:35 - finish final zoom out
   const finalZoomOutDuration = finalZoomOutEnd - finalZoomOutStart;
 
-  // Pixel blur parameters
-  const pixelBlurStart = 0;
-  const pixelBlurEnd = 15.5;
+  // Pixel blur parameters (CRT pixelated effect)
+  const pixelBlurStart = 0; // 0:00 - start blur ramp
+  const pixelBlurEnd = 15.5; // 0:15.5 - finish blur ramp (full 12px blur)
   const pixelBlurDuration = pixelBlurEnd - pixelBlurStart;
   const maxPixelBlur = 12; // Maximum pixel blur amount
 
@@ -282,6 +360,13 @@
 
   // CENTER MODEL BRIGHTNESS
   // =====================
+  /**
+   * Brightness ramp matches the music progression:
+   * - Starts low (0.1) during intro to create fade-in effect
+   * - Reaches full brightness (1.0) at first drop (0:31)
+   * - Maintains full brightness through main section
+   * - Fades out during final section (3:10+)
+   */
   const brightnessStartValue = 0.1; // Start at 0.1 brightness
   const brightnessDelayStart = 31.5; // Stay at 0.1 brightness until 3 seconds
   const brightnessEndTime = 32.4; // Reach full brightness by 11.5 seconds

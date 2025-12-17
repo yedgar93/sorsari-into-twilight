@@ -9,11 +9,8 @@
 (function () {
   "use strict";
 
-  // Detect mobile devices (same as in script.js)
-  const isMobile =
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    );
+  // Use centralized mobile detection from script.js
+  const isMobile = window.SORSARI?.isMobile ?? false;
 
   const starsCanvas = document.getElementById("stars-canvas");
   const starsCanvasWrapper = document.getElementById("stars-canvas-wrapper");
@@ -44,35 +41,55 @@
     alpha: true,
   });
 
+  // =====================
+  // BLINKING STARS TIMELINE
+  // =====================
+  // Blinking stars provide visual interest during the intro
+  // They fade out as the main track drops and visual intensity increases
+  // They return briefly during quieter sections (1:41-2:05)
+  
   // Blinking stars data
   const blinkingStars = [];
   const blinkingStarCount = 80;
-  const blinkingStarFadeOutDelay = 12; // 8 seconds after music starts
-  const blinkingStarFadeOutDuration = 16; // Fade out over 12 seconds
+  const blinkingStarFadeOutDelay = 12; // 0:12 - delay before fade starts (8 seconds after music starts)
+  const blinkingStarFadeOutDuration = 16; // Fade out over 16 seconds
 
-  // Blinking stars re-appearance at 1:41
-  const blinkingStarFadeInStart = 101; // 1:41 - fade in starts
+  // Blinking stars re-appearance at 1:41 (quieter section)
+  const blinkingStarFadeInStart = 101; // 1:41 - fade in starts (during breakdown transition)
   const blinkingStarFadeInDuration = 10; // Fade in over 10 seconds
-  const blinkingStarFadeOutStart = 125; // 2:05 - fade out starts
+  const blinkingStarFadeOutStart = 125; // 2:05 - fade out starts (second drop approaches)
   const blinkingStarFadeOutEnd = 152; // 2:32 - fade out ends (27 seconds duration)
 
-  // Screen shake parameters
-  const shakeDuration = 1.5;
-  const shakeDelayDuration = 0.5;
-  const shakeIntensityStar = 1.5; // 1-2px for stars
+  // =====================
+  // SCREEN SHAKE PARAMETERS
+  // =====================
+  // Screen shake adds impact to drops and builds energy
+  
+  const shakeDuration = 1.5; // Duration of shake effect in seconds
+  const shakeDelayDuration = 0.5; // Delay before shake starts
+  const shakeIntensityStar = 1.5; // 1-2px for stars (subtle shake)
   const firstDropShakeEndTime = 95; // 1:35 - stop shaking at breakdown
   const secondDropShakeEndTime = 192; // 3:12 - stop shaking
 
-  // Canvas zoom parameters
+  // =====================
+  // CANVAS ZOOM PARAMETERS (Intro Effect)
+  // =====================
+  // Stars start zoomed in and zoom out during the intro
+  // This creates a "hyperspace" entrance effect
+  
   const zoomStartScale = 2.0; // Start zoomed in 2x
-  const zoomOutStart = 0; // Start zooming out immediately
-  const zoomOutEnd = 20; // Finish zooming out at 20 seconds
+  const zoomOutStart = 0; // 0:00 - Start zooming out immediately
+  const zoomOutEnd = 20; // 0:20 - Finish zooming out at 20 seconds
   const zoomOutDuration = zoomOutEnd - zoomOutStart;
 
-  // Canvas blur parameters
-  const blurStartAmount = 2.0; // Start with 4px blur
-  const blurOutStart = 4; // Start removing blur immediately
-  const blurOutEnd = 24; // Finish removing blur at 24 seconds
+  // =====================
+  // CANVAS BLUR PARAMETERS (Intro Effect)
+  // =====================
+  // Blur ramps up then down during intro for visual polish
+  
+  const blurStartAmount = 2.0; // Start with 2px blur
+  const blurOutStart = 4; // 0:04 - Start removing blur
+  const blurOutEnd = 24; // 0:24 - Finish removing blur at 24 seconds
   const blurOutDuration = blurOutEnd - blurOutStart;
 
   // Create star layers with different speeds for parallax and depth-of-field
@@ -143,34 +160,49 @@
         }, // Close layer (sharp)
       ];
 
-  // Drop timing
-  const firstDropTime = 31.85;
-  const breakdownTime = 95.8;
-  const secondDropTime = 127.78;
-  const invertBackTime = 160; // 2:40 - reverse star direction back to up
-  const fadeOutStartTime = 123;
-  const fadeOutEndTime = 127;
-  const secondDropSnapTime = 128.04;
-  const dropSpeedMultiplier = 150;
-  const decelerationDuration = 2.0;
-  const fadeOutDuration = fadeOutEndTime - fadeOutStartTime;
+  // =====================
+  // MUSIC TIMELINE - DROP & EFFECT TIMES
+  // =====================
+  
+  const firstDropTime = 31.85; // 0:32 - First drop (bass starts)
+  const breakdownTime = 95.8; // 1:36 - Breakdown (energy builds, intense effects)
+  const secondDropTime = 127.78; // 2:08 - Second drop (kicks in with full power)
+  const invertBackTime = 160; // 2:40 - Stars reverse direction (moving upward returns to normal)
+  const fadeOutStartTime = 123; // 2:03 - Begin fade out of stars
+  const fadeOutEndTime = 127; // 2:07 - Fade out complete
+  const secondDropSnapTime = 128.04; // 2:08 - Exact timing for snap effects
+  const dropSpeedMultiplier = 150; // Acceleration multiplier when dropping
+  const decelerationDuration = 2.0; // Duration to decelerate after drop snap
+  const fadeOutDuration = fadeOutEndTime - fadeOutStartTime; // ~4 seconds
 
-  // Final blur and fade out
-  const finalBlurFadeStart = 214.5; // 3:34.5
+  // =====================
+  // FINAL SECTION FADE OUT
+  // =====================
+  // Everything fades out at the end to black
+  
+  const finalBlurFadeStart = 214.5; // 3:34.5 - Begin final fade out
   const finalBlurFadeDuration = 12.5; // Fade over 12.5 seconds to end at 3:47
   const finalBlurFadeEnd = finalBlurFadeStart + finalBlurFadeDuration; // 227 seconds (3:47)
 
-  // Chromatic aberration settings
+  // =====================
+  // CHROMATIC ABERRATION (Color Shift Effect)
+  // =====================
+  // Adds RGB color separation during intense sections for distortion effect
+  
   let chromaticAberrationEnabled = true;
-  const chromaticAberrationStartTime = 64; // Start at 1:04 (first drop area)
-  const chromaticAberrationEndTime = breakdownTime; // End at breakdown (1:35)
+  const chromaticAberrationStartTime = 64; // 1:04 - Start at first drop area
+  const chromaticAberrationEndTime = breakdownTime; // 1:35 - End at breakdown
   const chromaticAberrationMaxOffset = 3; // Max pixel offset for color channels
   const chromaticAberrationIntensity = 0.6; // How much to use the offset (0-1)
-  const chromaticFadeOutStart = 190; // 3:10 - start fading out
-  const chromaticFadeOutEnd = 206; // 3:26 - completely gone
+  const chromaticFadeOutStart = 190; // 3:10 - Start fading out chromatic effect
+  const chromaticFadeOutEnd = 206; // 3:26 - Chromatic effect completely gone
 
-  // Process kill times
-  const starPulsingKillTime = 206; // Kill star pulsing at 3:26
+  // =====================
+  // PROCESS CLEANUP TIMINGS
+  // =====================
+  // Kill expensive operations at the end to free up resources
+  
+  const starPulsingKillTime = 206; // 3:26 - Kill star pulsing to free CPU
 
   // Process kill flags
   let starPulsingKilled = false;

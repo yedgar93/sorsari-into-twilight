@@ -80,13 +80,15 @@ SORSARI.assetsLoaded = function () {
   return assetsLoaded;
 };
 
-window.onload = init;
+// Detect mobile devices - centralized for all scripts
+window.SORSARI.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+  navigator.userAgent
+);
 
-// Detect mobile devices
-const isMobile =
-  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  );
+// Local reference for convenience within this file
+const isMobile = window.SORSARI.isMobile;
+
+window.onload = init;
 
 // =====================
 // Prevent Pinch Zoom on Mobile
@@ -441,6 +443,153 @@ function initAudio() {
       return;
     }
     audioContext = new AudioContextClass();
+    
+    // =====================
+    // AUDIO CONTEXT INTERRUPTION HANDLING (Critical for Mobile)
+    // =====================
+    // Mobile browsers (especially iOS Safari) can suspend/interrupt audio context
+    // when the page loses focus or when the user receives a call
+    
+    /**
+     * Resume audio context if it gets suspended
+     * This is critical for mobile browsers which suspend audio when:
+     * - Page loses focus
+     * - User receives phone call
+     * - Device goes to sleep
+     * - Browser switches tabs
+     */
+    function resumeAudioContext() {
+      if (audioContext && audioContext.state === "suspended") {
+        audioContext.resume().then(() => {
+          console.log("[Audio] Audio context resumed after suspension");
+        }).catch((err) => {
+          console.error("[Audio] Failed to resume audio context:", err);
+        });
+      }
+    }
+
+    /**
+     * Resynchronize all audio tracks to prevent drift
+     * Critical for preventing speed-up issues when returning from background
+     * This happens on iOS Safari when swiping away and coming back
+     */
+    function resyncAudioTracks() {
+      if (!audioElement || !audioReactive) return;
+
+      // Get the master time from main audio element
+      const masterTime = audioElement.currentTime;
+      
+      // Sync stem tracks on desktop (if they exist)
+      if (!isMobile) {
+        if (drumsElement && Math.abs(drumsElement.currentTime - masterTime) > 0.1) {
+          drumsElement.currentTime = masterTime;
+          console.log(`[Audio] Resynced drums track to ${masterTime.toFixed(2)}s`);
+        }
+        if (instrumentsElement && Math.abs(instrumentsElement.currentTime - masterTime) > 0.1) {
+          instrumentsElement.currentTime = masterTime;
+          console.log(`[Audio] Resynced instruments track to ${masterTime.toFixed(2)}s`);
+        }
+      }
+
+      // Update SORSARI.musicTime to match actual playback
+      SORSARI.musicTime = masterTime;
+    }
+
+    // Handle page visibility changes (mobile browsers often suspend audio when hidden)
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        // Page is being hidden - pause to prevent drift
+        if (audioReactive && audioElement && !audioElement.paused) {
+          console.log("[Audio] Page hidden - pausing to prevent drift");
+          audioElement.pause();
+          if (!isMobile) {
+            if (drumsElement) drumsElement.pause();
+            if (instrumentsElement) instrumentsElement.pause();
+          }
+        }
+      } else if (audioReactive) {
+        // Page became visible again - resync and resume
+        console.log("[Audio] Page visible - resyncing and resuming");
+        
+        // First resync all tracks
+        resyncAudioTracks();
+        
+        // Then resume audio context
+        resumeAudioContext();
+        
+        // Finally resume playback with a small delay to ensure sync
+        setTimeout(() => {
+          if (audioElement && audioElement.paused) {
+            audioElement.play().catch((err) => {
+              console.warn("[Audio] Could not resume main audio:", err);
+            });
+          }
+          if (!isMobile) {
+            if (drumsElement && drumsElement.paused) {
+              drumsElement.play().catch((err) => {
+                console.warn("[Audio] Could not resume drums:", err);
+              });
+            }
+            if (instrumentsElement && instrumentsElement.paused) {
+              instrumentsElement.play().catch((err) => {
+                console.warn("[Audio] Could not resume instruments:", err);
+              });
+            }
+          }
+        }, 50); // Small delay to ensure audio context is ready
+      }
+    });
+
+    // Handle focus events (iOS Safari specific)
+    window.addEventListener("focus", () => {
+      if (audioReactive) {
+        // Resync before resuming
+        resyncAudioTracks();
+        resumeAudioContext();
+      }
+    });
+
+    // Periodic drift check - resync if tracks drift more than 100ms apart
+    // This prevents gradual speed-up issues on mobile
+    if (!isMobile) {
+      setInterval(() => {
+        if (audioReactive && audioElement && !audioElement.paused) {
+          const masterTime = audioElement.currentTime;
+          
+          // Check drums drift
+          if (drumsElement && Math.abs(drumsElement.currentTime - masterTime) > 0.1) {
+            console.warn(`[Audio] Detected drift in drums track: ${Math.abs(drumsElement.currentTime - masterTime).toFixed(3)}s`);
+            drumsElement.currentTime = masterTime;
+          }
+          
+          // Check instruments drift
+          if (instrumentsElement && Math.abs(instrumentsElement.currentTime - masterTime) > 0.1) {
+            console.warn(`[Audio] Detected drift in instruments track: ${Math.abs(instrumentsElement.currentTime - masterTime).toFixed(3)}s`);
+            instrumentsElement.currentTime = masterTime;
+          }
+        }
+      }, 2000); // Check every 2 seconds
+    }
+
+    // Handle user interaction to unlock audio (required on iOS)
+    // This ensures audio context is ready even if it was blocked initially
+    const unlockAudio = () => {
+      if (audioContext && audioContext.state === "suspended") {
+        audioContext.resume();
+      }
+    };
+
+    // One-time unlock on first user interaction
+    document.addEventListener("touchstart", unlockAudio, { once: true });
+    document.addEventListener("click", unlockAudio, { once: true });
+
+    // Monitor audio context state changes (useful for debugging)
+    if (audioContext.onstatechange !== undefined) {
+      audioContext.onstatechange = () => {
+        console.log(`[Audio] AudioContext state changed to: ${audioContext.state}`);
+      };
+    }
+
   } catch (error) {
     console.error("Failed to initialize AudioContext:", error);
     return;
@@ -528,6 +677,59 @@ function initAudio() {
     // readyState >= 2 means HAVE_CURRENT_DATA or better
     markAudioLoaded();
   }
+
+  // =====================
+  // AUDIO ELEMENT INTERRUPTION HANDLING (Mobile)
+  // =====================
+  /**
+   * Handle audio interruptions (phone calls, notifications, etc.)
+   * Critical for mobile devices where audio can be interrupted by system events
+   */
+  
+  // Track if audio was interrupted (vs user-paused)
+  let wasInterrupted = false;
+
+  // Audio element got paused (could be user action or system interruption)
+  audioElement.addEventListener("pause", () => {
+    if (audioReactive && !audioElement.ended) {
+      wasInterrupted = true;
+      console.log("[Audio] Audio paused (possible interruption)");
+    }
+  });
+
+  // Audio element is trying to play but can't (interrupted)
+  audioElement.addEventListener("waiting", () => {
+    console.log("[Audio] Audio waiting to load/resume");
+  });
+
+  // Audio element resumed playing after interruption
+  audioElement.addEventListener("play", () => {
+    if (wasInterrupted) {
+      console.log("[Audio] Audio resumed after interruption");
+      wasInterrupted = false;
+      
+      // Ensure audio context is also resumed
+      if (audioContext && audioContext.state === "suspended") {
+        audioContext.resume().catch((err) => {
+          console.error("[Audio] Failed to resume audio context on play:", err);
+        });
+      }
+    }
+  });
+
+  // Handle audio stalling (network issues or buffering)
+  audioElement.addEventListener("stalled", () => {
+    console.warn("[Audio] Audio stalled - possible network issue");
+  });
+
+  // Handle audio errors
+  audioElement.addEventListener("error", (e) => {
+    console.error("[Audio] Audio element error:", e);
+    const error = audioElement.error;
+    if (error) {
+      console.error(`[Audio] Error code: ${error.code}, message: ${error.message}`);
+    }
+  });
 
   // Sync all tracks - play them together
   function playAllTracks() {

@@ -71,11 +71,8 @@
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
 
-    // Detect mobile
-    const isMobile =
-      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-        navigator.userAgent
-      );
+    // Use centralized mobile detection from script.js
+    const isMobile = window.SORSARI?.isMobile ?? false;
 
     // Sample count for waveform
     const sampleCount = isMobile ? 32 : 64;
