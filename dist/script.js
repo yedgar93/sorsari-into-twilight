@@ -760,11 +760,18 @@ function initAudio() {
         audioReactive = true;
         // Trigger glow fade-in animation when music starts
         document.body.classList.add("glow-active");
-        // Hide touch-to-start text if it hasn't appeared yet
-        const touchToStartElement = document.getElementById("touch-to-start");
-        if (touchToStartElement) {
-          touchToStartElement.classList.add("hidden");
+        
+        // Hide and remove touch-to-start container to prevent blocking interactions
+        const touchToStartContainer = document.getElementById("touch-to-start-container");
+        if (touchToStartContainer) {
+          touchToStartContainer.classList.add("hidden");
+          // Remove from DOM after fade animation completes (0.5s)
+          setTimeout(() => {
+            touchToStartContainer.remove();
+            console.log("[Touch-to-start] Container removed from DOM");
+          }, 500);
         }
+        
         console.log("All tracks playing in sync:", {
           main: true,
           drums: !isMobile && !!drumsElement,
@@ -4446,7 +4453,10 @@ THREE.BAS.StandardAnimationMaterial.prototype._concatFragmentShader =
 // Wait for DOM to be ready, then prevent terror model from being tab-targeted
 function disableTerrorModelKeyboard() {
   const terrorModelViewer = document.getElementById("terror-model-viewer");
-  if (!terrorModelViewer) return;
+  if (!terrorModelViewer) {
+    console.warn("[Keyboard] Terror model-viewer not found in DOM");
+    return;
+  }
   
   // Set tabindex to prevent tab focus
   terrorModelViewer.setAttribute("tabindex", "-1");

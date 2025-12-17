@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Minified files (generated during build)
+dist/*.min.js
+dist/*.min.css
+
+# Build artifacts
+index.html.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*

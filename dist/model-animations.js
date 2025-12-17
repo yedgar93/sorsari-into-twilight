@@ -71,25 +71,25 @@
 
   /**
    * Camera animation state machine for center model viewer
-   * 
+   *
    * STATE MACHINE:
    * 1. NORMAL: Continuous oscillation with sinusoidal movement
    * 2. SPINNING: 360° camera spin (triggered at specific music timestamps)
    * 3. BLENDING: Smooth transition from spin back to oscillation
-   * 
+   *
    * The animation is driven by SORSARI.musicTime (from audio playback),
    * ensuring the camera motion stays perfectly synchronized with the music.
-   * 
+   *
    * USER INTERACTION:
    * - After 10 seconds into the track, users can manually rotate the camera
    * - While interacting, timeline-based animation pauses
    * - After release, animation freezes for 500ms then resumes
-   * 
+   *
    * OSCILLATION PARAMETERS:
    * - Yaw: ±20° oscillation (left-right rotation, controlled by sin(time * 0.3))
    * - Pitch: 75° ± 15° (up-down tilt, controlled by sin(time * 0.2))
    * - Distance: 105% ± 20% (zoom, controlled by sin(time * 0.25))
-   * 
+   *
    * @function animateModelCamera
    * @returns {void}
    */
@@ -139,7 +139,7 @@
         if (currentTime >= spinStart && currentTime < spinEnd) {
           currentState = "spinning";
           activeSpinTime = spinStart;
-          if (currentSpinIndex !== i) {
+          if (currentSpinIndex !== i && modelViewer) {
             currentSpinIndex = i;
             modelViewer.removeAttribute("min-camera-orbit");
             modelViewer.removeAttribute("max-camera-orbit");
@@ -189,7 +189,7 @@
         if (currentSpinIndex !== -1) {
           // Just exited blend mode - restore constraints (unless user is interacting)
           currentSpinIndex = -1;
-          if (!isUserInteractingWithCenter) {
+          if (!isUserInteractingWithCenter && modelViewer) {
             modelViewer.setAttribute("min-camera-orbit", "-30deg 60deg auto");
             modelViewer.setAttribute("max-camera-orbit", "30deg 90deg auto");
           }
@@ -201,7 +201,10 @@
       }
     }
 
-    modelViewer.cameraOrbit = `${yaw}deg ${pitch}deg ${distance}%`;
+    // Only update cameraOrbit if modelViewer exists
+    if (modelViewer) {
+      modelViewer.cameraOrbit = `${yaw}deg ${pitch}deg ${distance}%`;
+    }
 
     requestAnimationFrame(animateModelCamera);
   }
@@ -215,26 +218,26 @@
   // =====================
   /**
    * User Interaction Controller for Center Model Viewer
-   * 
+   *
    * INTERACTION FLOW:
    * 1. Users can interact after 10 seconds (interactionEnableTime)
    * 2. On mousedown/touchstart: Timeline animation pauses, constraints expand
    * 3. On mouseup/touchend: Timeline animation resumes after 500ms freeze
    * 4. After 1 second total: Camera orbit constraints restore to default
-   * 
+   *
    * CONSTRAINT BEHAVIOR:
    * - Default: ±30° yaw, 60-90° pitch (limited oscillation zone)
    * - Desktop interaction: ±110° yaw, 20-160° pitch (2 full rotations)
    * - Mobile interaction: ±720° yaw, 0-180° pitch (extreme freedom)
-   * 
+   *
    * STATE VARIABLES:
    * - isUserInteractingWithCenter: Currently dragging/touching
    * - isHoldingPosition: Frozen state after interaction ends
    * - interactionEnabled: Unlocked after 10 seconds
    */
-  
+
   // Disable interaction until 10 seconds into the song
-  const interactionEnableTime = 10; // seconds
+  const interactionEnableTime = 7; // seconds
   let interactionEnabled = false;
 
   /**
@@ -318,19 +321,19 @@
   // =====================
   /**
    * ZOOM & FADE ANIMATION TIMELINE
-   * 
+   *
    * ZOOM PHASES:
    * 1. 0:00-0:25 (0-25s): Pixel blur ramps in (0-12px blur) + brightness ramps up
    * 2. 0:25-1:04 (25-64s): Zoom in phase (scale 1.0 → 1.75x)
    * 3. 1:04-1:34 (64-94s): Zoom out phase (scale 1.75x → 1.0) - BREAKDOWN happens at 1:35
    * 4. 1:35-3:15 (95-195s): Hold steady
    * 5. 3:15-3:35 (195-215s): Final zoom out + fade out
-   * 
+   *
    * BRIGHTNESS:
    * - 0:00-0:31: Ramp from 0.1 to 1.0 (full brightness at first drop)
    * - 0:31-3:15: Hold full brightness
    * - 3:15-3:35: Fade out to 0
-   * 
+   *
    * PIXEL BLUR (CRT effect):
    * - 0:00-0:15.5: Ramp from 0px to 12px (creates pixelated "glitch" effect)
    * - 0:15.5+: Hold at 12px
