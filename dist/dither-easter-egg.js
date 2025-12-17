@@ -39,46 +39,6 @@ if (!isMobileDither) {
   });
 }
 
-// Add double-click/double-tap handler to "Coded by YEDGAR" credit to enable classic mode
-const codedByCredit = document.getElementById("coded-by-credit");
-if (codedByCredit) {
-  // Desktop double-click
-  codedByCredit.addEventListener("dblclick", () => {
-    if (!ditherActive) {
-      toggleDither();
-      console.log("Classic mode enabled via credit double-click");
-    }
-  });
-
-  // Mobile double-tap
-  let lastTapTime = 0;
-  const doubleTapDelay = 300;
-
-  codedByCredit.addEventListener(
-    "touchend",
-    (e) => {
-      const currentTime = Date.now();
-      const tapLength = currentTime - lastTapTime;
-
-      if (tapLength < doubleTapDelay && tapLength > 0) {
-        e.preventDefault();
-        if (!ditherActive) {
-          toggleDither();
-          console.log("Classic mode enabled via credit double-tap");
-          // Start the song on mobile when double-tapping credits
-          if (window.playAllTracks) {
-            window.playAllTracks();
-          }
-        }
-        lastTapTime = 0;
-        return;
-      }
-      lastTapTime = currentTime;
-    },
-    { passive: false }
-  );
-}
-
 function toggleDither() {
   ditherActive = !ditherActive;
   const threeContainer = document.querySelector("#three-container");
