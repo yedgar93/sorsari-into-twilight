@@ -1,5 +1,3 @@
-window.onload = init;
-
 // =====================
 // SORSARI Namespace
 // Single global object to share state between scripts
@@ -11,11 +9,114 @@ window.SORSARI.getInstrumentsLevel = function () {
   return 0;
 }; // Will be replaced after init
 
+// =====================
+// Loading State Management (set up BEFORE init)
+// =====================
+let assetsLoaded = false;
+let audioLoaded = false;
+let threejsReady = false;
+
+function markAudioLoaded() {
+  if (!audioLoaded) {
+    audioLoaded = true;
+    console.log("[Loading] Main audio loaded");
+    checkAllAssetsLoaded();
+  }
+}
+
+function markThreeJSReady() {
+  if (!threejsReady) {
+    threejsReady = true;
+    console.log("[Loading] Three.js ready");
+    checkAllAssetsLoaded();
+  }
+}
+
+function checkAllAssetsLoaded() {
+  console.log(
+    "[Loading] Check: audio=" + audioLoaded + ", threejs=" + threejsReady
+  );
+  if (audioLoaded && threejsReady) {
+    assetsLoaded = true;
+    hideLoadingSpinner();
+  }
+}
+
+function hideLoadingSpinner() {
+  const spinner = document.getElementById("loading-spinner-container");
+  if (spinner) {
+    spinner.classList.add("hidden");
+    console.log("[Loading] All assets loaded - hiding spinner");
+  }
+
+  // Show touch-to-start container
+  const touchToStart = document.getElementById("touch-to-start-container");
+  if (touchToStart) {
+    touchToStart.classList.add("visible");
+    console.log("[Loading] Showing touch-to-start");
+  }
+}
+
+// Fallback: if loading takes too long (10 seconds), force it to complete
+setTimeout(function () {
+  if (!assetsLoaded) {
+    console.warn(
+      "[Loading] Timeout - forcing load completion (audio=" +
+        audioLoaded +
+        ", threejs=" +
+        threejsReady +
+        ")"
+    );
+    audioLoaded = true;
+    threejsReady = true;
+    assetsLoaded = true;
+    hideLoadingSpinner();
+  }
+}, 10000);
+
+// Expose for use in other scripts
+SORSARI.markThreeJSReady = markThreeJSReady;
+SORSARI.assetsLoaded = function () {
+  return assetsLoaded;
+};
+
+window.onload = init;
+
 // Detect mobile devices
 const isMobile =
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     navigator.userAgent
   );
+
+// =====================
+// Prevent Pinch Zoom on Mobile
+// =====================
+if (isMobile) {
+  // Prevent pinch zoom with touch events
+  document.addEventListener(
+    "touchmove",
+    function (event) {
+      if (event.touches.length > 1) {
+        event.preventDefault();
+      }
+    },
+    { passive: false }
+  );
+
+  // Prevent double-tap zoom
+  let lastTouchEnd = 0;
+  document.addEventListener(
+    "touchend",
+    function (event) {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    },
+    { passive: false }
+  );
+}
 
 // =====================
 // Low-Power Failsafe System
@@ -412,8 +513,28 @@ function initAudio() {
     console.log("Instruments track loaded for star pulsing");
   }
 
+  // =====================
+  // Loading State Management - Listen for audio load events
+  // =====================
+  // Listen for audio load events
+  audioElement.addEventListener("canplay", markAudioLoaded);
+  audioElement.addEventListener("loadeddata", markAudioLoaded);
+  audioElement.addEventListener("loadedmetadata", markAudioLoaded);
+
+  // Check if audio is already loaded (in case events fired before listener attached)
+  if (audioElement.readyState >= 2) {
+    // readyState >= 2 means HAVE_CURRENT_DATA or better
+    markAudioLoaded();
+  }
+
   // Sync all tracks - play them together
   function playAllTracks() {
+    // Prevent playback until all assets are loaded
+    if (!assetsLoaded) {
+      console.log("[Loading] Playback blocked - assets still loading");
+      return;
+    }
+
     if (audioContext.state === "suspended") {
       audioContext.resume();
     }
@@ -1976,9 +2097,14 @@ function init() {
 
     // g.addColor(colorProxy, "diffuse").name("color");
     // g.add(bloomPass.copyUniforms.opacity, "value").name("bloom str");
+
+    // Mark Three.js as ready (for loading spinner)
+    SORSARI.markThreeJSReady();
   } catch (e) {
     console.error("Error during 3D scene initialization:", e);
     console.log("Continuing without 3D visualization");
+    // Still mark as ready even if there's an error, so we don't get stuck on loading screen
+    SORSARI.markThreeJSReady();
   }
 }
 

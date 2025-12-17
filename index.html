@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Tiny5&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Tiny5&display=block"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="dist/style.css" />
@@ -190,7 +190,15 @@
     <!-- UI Glow Layer - white glow above CRT grid to let UI luminosity shine through -->
     <div id="ui-glow-layer"></div>
 
-    <!-- Touch to start text (appears 4 seconds after page load) -->
+    <!-- Loading spinner (appears while assets load) -->
+    <div id="loading-spinner-container">
+      <div id="loading-spinner">
+        <div class="spinner-ring"></div>
+        <div class="spinner-text">LOADING</div>
+      </div>
+    </div>
+
+    <!-- Touch to start text (appears after loading completes) -->
     <div id="touch-to-start-container">
       <div id="touch-to-start-line1">TOUCH TO START</div>
       <div id="touch-to-start-line2">

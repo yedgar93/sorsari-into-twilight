@@ -11,6 +11,11 @@ html {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   image-rendering: -webkit-optimize-contrast;
+  /* Prevent pinch zoom on mobile */
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* CRT SNES-style pixel blend effect with burn-in ghosting */
@@ -156,6 +161,62 @@ body.glow-active::after {
   opacity: 1;
 }
 
+/* Loading spinner container */
+#loading-spinner-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  z-index: 10004;
+  pointer-events: none;
+  height: 50px;
+  width: 50px;
+}
+
+#loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.spinner-ring {
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.128);
+  border-top: 3px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: spinnerRotate 1s linear infinite;
+}
+
+.spinner-text {
+  font-family: "Tiny5", monospace;
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.77);
+  letter-spacing: 1px;
+  text-align: center;
+}
+
+@keyframes spinnerRotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Hide loading spinner when done */
+#loading-spinner-container.hidden {
+  display: none;
+}
+
 /* Touch to start container */
 #touch-to-start-container {
   position: fixed;
@@ -168,6 +229,12 @@ body.glow-active::after {
   gap: 0;
   z-index: 10003;
   pointer-events: none;
+  visibility: hidden; /* Hidden until loading completes */
+}
+
+/* Show touch-to-start when loading is done */
+#touch-to-start-container.visible {
+  visibility: visible;
 }
 
 /* Line 1: TOUCH TO START */
@@ -180,7 +247,7 @@ body.glow-active::after {
   letter-spacing: 1px;
   opacity: 0;
   animation: touchToStartFade 0.125s forwards;
-  animation-delay: 3s;
+  animation-delay: 1s;
   height: 12px;
   display: flex;
   align-items: center;
@@ -193,7 +260,7 @@ body.glow-active::after {
   gap: 8px;
   opacity: 0;
   animation: touchToStartFade 0.125s forwards;
-  animation-delay: 3s;
+  animation-delay: 1s;
   height: 12px;
 }
 
@@ -256,12 +323,12 @@ body.glow-active::after {
 
 .volume-speaker {
   animation: speakerShow 2s infinite;
-  animation-delay: 3s;
+  animation-delay: 1s;
 }
 
 .volume-one-arc {
   animation: oneArcShow 2s infinite;
-  animation-delay: 3s;
+  animation-delay: 1s;
 }
 
 /* Fade out when song starts */
