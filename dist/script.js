@@ -1184,13 +1184,18 @@ function initAudio() {
 
   // Try to autoplay
   if (shouldAutoplay || isReplayingFromSession) {
-    console.log("Autoplay enabled from replay - starting immediately");
+    console.log("Autoplay enabled from replay - waiting for assets then starting");
     // Clear the replay flag
     sessionStorage.removeItem("isReplaying");
-    // Small delay to ensure audio context is ready after page reload
-    setTimeout(() => {
-      playAllTracks();
-    }, 100);
+    // Wait for assets to load before attempting autoplay
+    const checkAndPlay = () => {
+      if (assetsLoaded) {
+        playAllTracks();
+      } else {
+        setTimeout(checkAndPlay, 100);
+      }
+    };
+    checkAndPlay();
   } else {
     playAllTracks();
   }
@@ -1357,7 +1362,9 @@ function initAudio() {
     // Refresh page after fade completes using location.reload()
     // This preserves the user gesture context better on mobile
     setTimeout(() => {
-      location.reload();
+      const url = new URL(window.location);
+      url.searchParams.set('autoplay', 'true');
+      window.location.href = url.toString();
     }, 850);
   };
 
