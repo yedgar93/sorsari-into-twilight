@@ -94,6 +94,18 @@
     let frameCount = 0;
 
     function visualize() {
+      // Stop animation if song has ended
+      if (window.visualizersStoppped) {
+        console.log("[Bar Visualizer] Animation stopped - song ended");
+        return;
+      }
+
+      // Stop animation if disabled via debug menu
+      if (window.debugVisualizersDisabled) {
+        requestAnimationFrame(visualize);
+        return;
+      }
+
       // Apply FPS limit if dither mode is active (30fps max)
       if (window.ditherMaxFps) {
         const now = performance.now();

@@ -1291,6 +1291,21 @@ function initAudio() {
   audioElement.addEventListener("ended", function () {
     console.log("Song ended");
     songEndedTime = Date.now();
+
+    // Kill all remaining processes to reduce GPU load
+    console.log("[Cleanup] Song ended - killing remaining processes");
+    globalPauseState.paused = true; // Stop Three.js animation loop
+
+    // Stop stars animation by setting a global flag
+    window.starsAnimationStopped = true;
+
+    // Stop model animations
+    window.modelAnimationsStopped = true;
+
+    // Stop visualizers
+    window.visualizersStoppped = true;
+
+    console.log("[Cleanup] All animation loops stopped");
   });
 
   // Check if 7 seconds have passed since song ended and show replay button
@@ -1709,6 +1724,8 @@ function init() {
     const upwardPanSpeed = 2.125; // Units per second to pan upward (SUPER slow)
     const upwardTiltSpeed = 10; // Degrees per second to tilt camera upward
     let upwardPanEnabled = false; // Track if pan/tilt has been enabled
+    let lastCameraPanUpdate = 0; // For throttling camera pan updates
+    const cameraPanUpdateInterval = 3; // Update camera pan every 3 frames (20fps instead of 60fps)
 
     // Intro zoom settings
     const dropTime = 31.5; // Time in seconds when the drop hits
@@ -1728,8 +1745,12 @@ function init() {
     // CSS filter inversion at second drop
     let invertFilterApplied = false;
     let invertFilterRemoved = false;
+    const invertStart = 127.0; // 2:07
+    const invertEnd = 160.06; // 2:40:06
     const threeContainer = document.getElementById("three-container");
     const threeBlurWrapper = document.getElementById("three-blur-wrapper");
+    // Diagnostic: log filter state between 2:00 and 3:30 to troubleshoot invert
+    let lastInvertDiagLogSecond = -1;
 
     // Set failsafe references
     failsafeThreeContainer = threeContainer;
@@ -1885,6 +1906,26 @@ function init() {
 
       // Get current audio playback time
       const currentTime = audioElement ? audioElement.currentTime : 0;
+
+      // Diagnostic logging: once-per-second between 2:00 and 3:30
+      try {
+        const logStart = 120; // 2:00
+        const logEnd = 210; // 3:30
+        const sec = Math.floor(currentTime);
+        if (
+          sec !== lastInvertDiagLogSecond &&
+          sec >= logStart &&
+          sec <= logEnd
+        ) {
+          lastInvertDiagLogSecond = sec;
+          console.log(
+            `[InvertDiag] t=${currentTime.toFixed(2)}s filter=`,
+            threeContainer ? threeContainer.style.filter : "<no-threeContainer>"
+          );
+        }
+      } catch (e) {
+        /* ignore diagnostics errors */
+      }
 
       // Apply parallax depth shift to UI elements based on audio peaks
       // Kill parallax process at 3:10 to save performance
@@ -2399,49 +2440,45 @@ function init() {
           upwardPanEnabled = true;
         }
 
-        const timeSincePanStart = currentTime - upwardPanStartTime;
-        const upwardPanOffset = timeSincePanStart * upwardPanSpeed; // Pan upwards SUPER slow
-        const tiltAmount = timeSincePanStart * upwardTiltSpeed; // Tilt upward over time
+        // Throttle camera pan updates to reduce FPS impact (update every 3 frames = 20fps)
+        if (frameCount - lastCameraPanUpdate >= cameraPanUpdateInterval) {
+          lastCameraPanUpdate = frameCount;
 
-        // Move the camera position upward (increase Y position)
-        root.camera.position.y = upwardPanOffset;
+          const timeSincePanStart = currentTime - upwardPanStartTime;
+          const upwardPanOffset = timeSincePanStart * upwardPanSpeed; // Pan upwards SUPER slow
+          const tiltAmount = timeSincePanStart * upwardTiltSpeed; // Tilt upward over time
 
-        // Tilt camera upward by looking at a point that moves up over time
-        // Start looking at (0, 0, 0) and gradually look higher and higher
-        const lookAtY = tiltAmount; // Look target moves upward
-        root.camera.lookAt(0, lookAtY, 0);
+          // Move the camera position upward (increase Y position)
+          root.camera.position.y = upwardPanOffset;
+
+          // Tilt camera upward by looking at a point that moves up over time
+          // Start looking at (0, 0, 0) and gradually look higher and higher
+          const lookAtY = tiltAmount; // Look target moves upward
+          root.camera.lookAt(0, lookAtY, 0);
+        }
       }
 
-      // Apply CSS invert filter at second drop (2:08 / 128 seconds)
-      if (currentTime >= 128 && !invertFilterApplied) {
-        console.log(
-          "Applying invert filter at 2:08, currentTime:",
-          currentTime
-        );
-        console.log("threeContainer exists?", !!threeContainer);
-
+      // Apply invert filter at second drop (2:07 to 2:40.06)
+      if (
+        currentTime >= invertStart &&
+        currentTime < invertEnd &&
+        !invertFilterApplied
+      ) {
         if (threeContainer) {
-          // Apply invert + hue-rotate to keep colors looking the same
-          // Hue rotation of 180deg compensates for the color inversion
-          const currentFilter = threeContainer.style.filter || "none";
-          let newFilter = "invert(100%) hue-rotate(180deg)";
-
-          // Preserve brightness filter if it exists
-          if (
-            currentFilter !== "none" &&
-            currentFilter.includes("brightness")
-          ) {
-            newFilter = `${newFilter} ${currentFilter}`;
+          const currentFilter = threeContainer.style.filter || "";
+          let brightnessPart = "";
+          if (currentFilter && currentFilter.includes("brightness")) {
+            const m = currentFilter.match(/brightness\([^)]*\)/);
+            if (m) brightnessPart = m[0];
           }
-
+          const newFilter = brightnessPart
+            ? `invert(100%) hue-rotate(180deg) ${brightnessPart}`
+            : "invert(100%) hue-rotate(180deg)";
           threeContainer.style.filter = newFilter;
-          console.log("Applied filter:", threeContainer.style.filter);
-        } else {
-          console.error("threeContainer is NULL!");
         }
-
         invertFilterApplied = true;
-        console.log("Inverted at 2:08");
+        invertFilterRemoved = false;
+        console.log("Applied invert filter at 2:07, currentTime:", currentTime);
       }
 
       // Apply screen shake to center model viewer during drops
@@ -2455,36 +2492,25 @@ function init() {
 
       // Remove CSS invert filter at 2:40:06 (160.06 seconds)
       if (
-        currentTime >= 160.06 &&
+        currentTime >= invertEnd &&
         invertFilterApplied &&
         !invertFilterRemoved
       ) {
-        console.log(
-          "Removing invert filter at 2:40:06, currentTime:",
-          currentTime
-        );
-
         if (threeContainer) {
-          const currentFilter = threeContainer.style.filter || "none";
+          const currentFilter = threeContainer.style.filter || "";
           let newFilter = "none";
-
-          // Preserve brightness filter if it exists
-          if (
-            currentFilter !== "none" &&
-            currentFilter.includes("brightness")
-          ) {
-            const brightnessMatch = currentFilter.match(/brightness\([^)]*\)/);
-            if (brightnessMatch) {
-              newFilter = brightnessMatch[0];
-            }
+          if (currentFilter && currentFilter.includes("brightness")) {
+            const m = currentFilter.match(/brightness\([^)]*\)/);
+            if (m) newFilter = m[0];
           }
-
           threeContainer.style.filter = newFilter;
-          console.log("Removed filter, new filter:", newFilter);
+          console.log(
+            "Removed invert filter at 2:40:06, new filter:",
+            newFilter
+          );
         }
-
         invertFilterRemoved = true;
-        console.log("Inverted back at 2:40:06");
+        invertFilterApplied = false;
       }
 
       // Apply chromatic aberration to model viewer (two phases)
@@ -2620,12 +2646,17 @@ function init() {
 
       // Apply brightness filter to triangles container (combine with existing filters)
       if (threeContainer) {
-        const currentFilter = threeContainer.style.filter || "none";
-        let filterValue = `brightness(${trianglesBrightness})`;
+        const currentFilter = threeContainer.style.filter || "";
 
-        // Preserve existing filters (invert, blur, etc.)
-        if (currentFilter !== "none" && !currentFilter.includes("brightness")) {
-          filterValue = `${currentFilter} ${filterValue}`;
+        // Remove any existing brightness(...) part but keep other filters (invert, blur, hue-rotate, etc.)
+        const preserved = currentFilter
+          .replace(/brightness\([^)]*\)/g, "")
+          .trim();
+
+        // Build new filter string: preserved filters first, then updated brightness
+        let filterValue = `brightness(${trianglesBrightness})`;
+        if (preserved && preserved !== "none") {
+          filterValue = `${preserved} ${filterValue}`;
         }
 
         threeContainer.style.filter = filterValue;
@@ -2981,7 +3012,7 @@ function THREERoot(params) {
 
   // Half-resolution rendering for pixelated effect (50% of normal resolution)
   // This reduces pixel count by 75% for massive performance gain
-  this.renderer.setPixelRatio(params.pixelRatio * 0.5);
+  this.renderer.setPixelRatio(params.pixelRatio * 0.33);
 
   // container
   this.container =
@@ -3094,8 +3125,8 @@ THREERoot.prototype = {
       this.update();
     }
 
-    // Three.js canvas rendering - can be throttled separately on mobile
-    const trianglesFpsScale = isMobile ? adaptiveFpsScale : 1.0;
+    // Three.js canvas rendering - respect global FPS settings
+    const trianglesFpsScale = isMobile ? adaptiveFpsScale : CONFIG.fpsScale;
     const trianglesFrameSkipInterval = Math.max(
       1,
       Math.round(1 / trianglesFpsScale)

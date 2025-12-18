@@ -382,11 +382,22 @@
         e.stopPropagation();
         console.log("[Debug] Stars canvas toggle clicked");
         starsCanvasVisible = !starsCanvasVisible;
+
+        // Hide/show canvas
         starsCanvas.style.visibility = starsCanvasVisible
           ? "visible"
           : "hidden";
+
+        // Actually stop/start the background process
+        window.debugStarsDisabled = !starsCanvasVisible;
+
         starsCanvasBtn.textContent = starsCanvasVisible ? "Stars ✓" : "Stars ✗";
         starsCanvasBtn.style.opacity = starsCanvasVisible ? "1" : "0.5";
+
+        console.log(
+          "[Debug] Stars animation",
+          starsCanvasVisible ? "enabled" : "disabled"
+        );
       });
     } else {
       console.log(
@@ -400,13 +411,26 @@
         e.stopPropagation();
         console.log("[Debug] Three container toggle clicked");
         threeContainerVisible = !threeContainerVisible;
+
+        // Hide/show container
         threeContainerEl.style.visibility = threeContainerVisible
           ? "visible"
           : "hidden";
+
+        // Actually pause/resume the Three.js rendering
+        if (window.globalPauseState) {
+          window.globalPauseState.paused = !threeContainerVisible;
+        }
+
         threeContainerBtn.textContent = threeContainerVisible
           ? "Triangles ✓"
           : "Triangles ✗";
         threeContainerBtn.style.opacity = threeContainerVisible ? "1" : "0.5";
+
+        console.log(
+          "[Debug] Three.js rendering",
+          threeContainerVisible ? "enabled" : "paused"
+        );
       });
     } else {
       console.log(
@@ -440,13 +464,24 @@
         e.stopPropagation();
         console.log("[Debug] Visualizer toggle clicked");
         visualizerVisible = !visualizerVisible;
+
+        // Hide/show canvas
         visualizerCanvas.style.visibility = visualizerVisible
           ? "visible"
           : "hidden";
+
+        // Actually stop/start the visualizer process
+        window.debugVisualizersDisabled = !visualizerVisible;
+
         visualizerBtn.textContent = visualizerVisible
           ? "Visualizer ✓"
           : "Visualizer ✗";
         visualizerBtn.style.opacity = visualizerVisible ? "1" : "0.5";
+
+        console.log(
+          "[Debug] Visualizer animation",
+          visualizerVisible ? "enabled" : "disabled"
+        );
       });
     } else {
       console.log(

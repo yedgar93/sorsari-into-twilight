@@ -186,6 +186,12 @@ const CHAR_HEIGHT = 16;
 function asciiLoop() {
   if (!asciiActive || !asciiCanvas) return;
 
+  // Stop animation if song has ended
+  if (window.visualizersStoppped) {
+    console.log("[ASCII] Animation stopped - song ended");
+    return;
+  }
+
   // Frame skipping based on global FPS scale (CONFIG.fpsScale from script.js)
   frameSkipCounter++;
   const fpsScale = window.CONFIG?.fpsScale || 0.33;

@@ -90,6 +90,12 @@
     let startTime = Date.now();
     let lastFrameTime = startTime;
     function animate() {
+      // Stop animation if song has ended
+      if (window.visualizersStoppped) {
+        console.log("[SNES Intro] Animation stopped - song ended");
+        return;
+      }
+
       frameCount++;
       // Use elapsed time for twinkling (always advances)
       const elapsedTime = (Date.now() - startTime) / 1000;

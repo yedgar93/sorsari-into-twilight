@@ -636,6 +636,12 @@
   });
 
   function animateFinalImage() {
+    // Stop animation if song has ended
+    if (window.modelAnimationsStopped) {
+      console.log("[Model Animations] Animation stopped - song ended");
+      return;
+    }
+
     const currentTime = SORSARI.musicTime || 0;
 
     // Lazy load the final image 13 seconds before it appears

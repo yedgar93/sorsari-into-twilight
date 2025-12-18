@@ -88,6 +88,12 @@
   const finalBlurFadeDuration = 15;
   const finalBlurFadeEnd = finalBlurFadeStart + finalBlurFadeDuration;
 
+  // Performance optimization: frame counters for heavy periods
+  let starsFrameCount = 0;
+  let lastTransformUpdate = 0;
+  let lastChromaticRender = 0; // Track when we last rendered chromatic aberration
+  let lastStarsRender = 0; // Track when we last rendered stars (for FPS throttling)
+
   // Chromatic aberration settings
   const chromaticAberrationEnabled = true;
   const chromaticAberrationStartTime = invertBackTime; // Start at 2:40 when zoom begins
@@ -176,12 +182,25 @@
     const scaleX = starsCanvas.width / oldWidth;
     const scaleY = starsCanvas.height / oldHeight;
 
+    // Update typed arrays for main star layers
     starLayers.forEach((layer) => {
-      layer.stars.forEach((star) => {
-        star.x *= scaleX;
-        star.y *= scaleY;
-      });
+      for (let i = 0; i < layer.starCount; i++) {
+        layer.positions[i * 4] *= scaleX;     // x
+        layer.positions[i * 4 + 1] *= scaleY; // y
+      }
     });
+
+    // Update hyperspace positions
+    for (let i = 0; i < hyperspaceLayer.count; i++) {
+      hyperspaceLayer.positions[i * 3] *= scaleX;     // x
+      hyperspaceLayer.positions[i * 3 + 1] *= scaleY; // y
+    }
+
+    // Update reverse direction positions
+    for (let i = 0; i < reverseDirectionLayer.count; i++) {
+      reversePositions[i * 3] *= scaleX;     // x
+      reversePositions[i * 3 + 1] *= scaleY; // y
+    }
   });
 
   // =====================
@@ -237,14 +256,43 @@
     });
   }
 
-  // Set initial Z values
-  hyperspaceLayer.stars.forEach((star) => {
-    star.baseZ = star.z;
+  // OPTIMIZATION: Use typed arrays for better performance
+  // Convert star arrays to typed arrays for faster operations
+  starLayers.forEach((layer) => {
+    const starCount = layer.stars.length;
+    const positions = new Float32Array(starCount * 4); // x, y, vx, vy per star
+    const pulseData = new Float32Array(starCount * 2); // pulseAmount, pulseDecay per star
+
+    layer.stars.forEach((star, i) => {
+      positions[i * 4] = star.x;
+      positions[i * 4 + 1] = star.y;
+      positions[i * 4 + 2] = star.vx;
+      positions[i * 4 + 3] = star.vy;
+      pulseData[i * 2] = star.pulseAmount;
+      pulseData[i * 2 + 1] = star.pulseDecay;
+    });
+
+    layer.positions = positions;
+    layer.pulseData = pulseData;
+    layer.starCount = starCount;
   });
 
-  reverseDirectionLayer.stars.forEach((star) => {
-    star.baseZ = star.z;
+  // Convert hyperspace and reverse layers to typed arrays too
+  const hyperspacePositions = new Float32Array(hyperspaceLayer.count * 3); // x, y, z per star
+  hyperspaceLayer.stars.forEach((star, i) => {
+    hyperspacePositions[i * 3] = star.x;
+    hyperspacePositions[i * 3 + 1] = star.y;
+    hyperspacePositions[i * 3 + 2] = star.z;
   });
+  hyperspaceLayer.positions = hyperspacePositions;
+
+  const reversePositions = new Float32Array(reverseDirectionLayer.count * 3); // x, y, z per star
+  reverseDirectionLayer.stars.forEach((star, i) => {
+    reversePositions[i * 3] = star.x;
+    reversePositions[i * 3 + 1] = star.y;
+    reversePositions[i * 3 + 2] = star.z;
+  });
+  reverseDirectionLayer.positions = reversePositions;
 
   // Helper function to draw stars with chromatic aberration effect
   function drawStarWithChromatic(
@@ -321,7 +369,40 @@
 
   // Animate stars
   function animateStars() {
+    // Stop animation if song has ended
+    if (window.starsAnimationStopped) {
+      console.log("[Stars] Animation stopped - song ended");
+      return;
+    }
+
+    // Stop animation if disabled via debug menu
+    if (window.debugStarsDisabled) {
+      requestAnimationFrame(animateStars);
+      return;
+    }
+
     const currentTime = SORSARI.musicTime || 0;
+    starsFrameCount++;
+
+    // OPTIMIZATION: Stars-specific FPS throttling (render at half the current FPS)
+    const starsRenderInterval = 2; // Render every 2nd frame (30fps if global is 60fps)
+    const shouldRenderStars =
+      starsFrameCount - lastStarsRender >= starsRenderInterval;
+
+    if (!shouldRenderStars) {
+      requestAnimationFrame(animateStars);
+      return;
+    }
+    lastStarsRender = starsFrameCount;
+
+    // OPTIMIZATION #5: Skip stars rendering frames during heavy periods (2:40-3:35)
+    const isHeavyPeriod = currentTime >= 160 && currentTime <= 215;
+    const starsFrameSkip = isHeavyPeriod ? 2 : 1; // Additional skip during heavy period
+
+    if (starsFrameSkip > 1 && starsFrameCount % starsFrameSkip !== 0) {
+      requestAnimationFrame(animateStars);
+      return;
+    }
     const isDropActive =
       (currentTime >= firstDropTime && currentTime < breakdownTime) ||
       currentTime >= secondDropTime;
@@ -409,6 +490,18 @@
         chromaticAberrationIntensity;
     }
 
+    // OPTIMIZATION: Throttle chromatic aberration rendering to 15fps
+    const chromaticRenderInterval = 4; // Render chromatic every 4th frame (15fps)
+    const shouldRenderChromatic =
+      starsFrameCount - lastChromaticRender >= chromaticRenderInterval;
+
+    // If not time to render chromatic, set offset to 0 (draws normal stars)
+    if (chromaticOffset !== 0 && !shouldRenderChromatic) {
+      chromaticOffset = 0;
+    } else if (chromaticOffset !== 0 && shouldRenderChromatic) {
+      lastChromaticRender = starsFrameCount;
+    }
+
     // Calculate wrapper blur amount (blur out from 4px to 0px over first 24 seconds)
     let wrapperBlurAmount = 0;
     if (currentTime < blurOutEnd) {
@@ -424,24 +517,37 @@
     const isInSecondDrop =
       currentTime >= secondDropTime && currentTime < secondDropShakeEndTime;
 
-    if (isInFirstDrop || isInSecondDrop) {
-      const timeSinceDropStart = isInFirstDrop
-        ? currentTime - firstDropTime
-        : currentTime - secondDropTime;
-      const cycleTime =
-        timeSinceDropStart % (shakeDuration + shakeDelayDuration);
+    // OPTIMIZATION #1: Throttle transform updates during heavy periods
+    const transformUpdateInterval = isHeavyPeriod ? 3 : 1; // Update every 3rd frame during heavy period
+    const shouldUpdateTransform =
+      starsFrameCount - lastTransformUpdate >= transformUpdateInterval;
 
-      if (cycleTime < shakeDuration) {
-        // In shake phase
-        const shakeOffsetX = (Math.random() - 0.5) * shakeIntensityStar;
-        const shakeOffsetY = (Math.random() - 0.5) * shakeIntensityStar;
-        starsCanvas.style.transform = `translate(${shakeOffsetX}px, ${shakeOffsetY}px) scale(${zoomScale}) rotate(${rotationDegrees}deg)`;
+    if (shouldUpdateTransform) {
+      lastTransformUpdate = starsFrameCount;
+
+      // OPTIMIZATION C: Disable screen shake during camera pan (2:40-3:35) for cinematic effect
+      const skipShakeDuringCameraPan = currentTime >= 160 && currentTime <= 215;
+
+      if ((isInFirstDrop || isInSecondDrop) && !skipShakeDuringCameraPan) {
+        const timeSinceDropStart = isInFirstDrop
+          ? currentTime - firstDropTime
+          : currentTime - secondDropTime;
+        const cycleTime =
+          timeSinceDropStart % (shakeDuration + shakeDelayDuration);
+
+        if (cycleTime < shakeDuration) {
+          // In shake phase - use transform3d for hardware acceleration
+          const shakeOffsetX = (Math.random() - 0.5) * shakeIntensityStar;
+          const shakeOffsetY = (Math.random() - 0.5) * shakeIntensityStar;
+          starsCanvas.style.transform = `translate3d(${shakeOffsetX}px, ${shakeOffsetY}px, 0) scale(${zoomScale}) rotate(${rotationDegrees}deg)`;
+        } else {
+          // In delay phase - use transform3d for hardware acceleration
+          starsCanvas.style.transform = `translate3d(0, 0, 0) scale(${zoomScale}) rotate(${rotationDegrees}deg)`;
+        }
       } else {
-        // In delay phase
-        starsCanvas.style.transform = `scale(${zoomScale}) rotate(${rotationDegrees}deg)`;
+        // No shake - just scale and rotate with hardware acceleration
+        starsCanvas.style.transform = `translate3d(0, 0, 0) scale(${zoomScale}) rotate(${rotationDegrees}deg)`;
       }
-    } else {
-      starsCanvas.style.transform = `scale(${zoomScale}) rotate(${rotationDegrees}deg)`;
     }
 
     // Create trail effect during drops by not fully clearing canvas
@@ -497,102 +603,133 @@
         starsCtx.filter = "none";
       }
 
-      // Batch stars by whether they're pulsing or not for more efficient rendering
+      // OPTIMIZATION: Batch process all stars in this layer using typed arrays
+      const canvasWidth = starsCanvas.width;
+      const canvasHeight = starsCanvas.height;
+      const starCount = layer.starCount;
+      const positions = layer.positions;
+      const pulseData = layer.pulseData;
+
+      // Pre-calculate common velocity values for all stars in layer
+      let layerVy;
+      if (timingState === "firstDrop") {
+        layerVy = -layer.speed * dropSpeedMultiplier;
+      } else if (timingState === "deceleration") {
+        const hyperspeedVy = -layer.speed * dropSpeedMultiplier;
+        layerVy = hyperspeedVy + (layer.speed - hyperspeedVy) * decelEase;
+      } else if (timingState === "secondDrop") {
+        layerVy = layer.speed * dropSpeedMultiplier;
+      } else {
+        layerVy = layer.speed;
+      }
+
+      // Batch update positions and collect rendering data
       const normalStars = [];
       const pulsingStars = [];
 
-      layer.stars.forEach((star) => {
-        // Determine star velocity based on pre-calculated timing state
-        if (timingState === "firstDrop") {
-          star.vx = star.baseVx;
-          star.vy = -layer.speed * dropSpeedMultiplier;
-        } else if (timingState === "deceleration") {
-          const hyperspeedVy = -layer.speed * dropSpeedMultiplier;
-          star.vx = star.baseVx;
-          star.vy = hyperspeedVy + (star.baseVy - hyperspeedVy) * decelEase;
-        } else if (timingState === "secondDrop") {
-          star.vx = star.baseVx;
-          star.vy = layer.speed * dropSpeedMultiplier;
-        } else {
-          star.vx = star.baseVx;
-          star.vy = star.baseVy;
+      for (let i = 0; i < starCount; i++) {
+        const baseIndex = i * 4;
+        const pulseIndex = i * 2;
+
+        // Update velocity (batch operation)
+        positions[baseIndex + 2] = positions[baseIndex + 2]; // baseVx stays the same
+        positions[baseIndex + 3] = timingState === "deceleration"
+          ? layerVy + (positions[baseIndex + 3] - layerVy) * decelEase
+          : layerVy;
+
+        // Pulse logic (reduced frequency for performance)
+        if (instrumentsLevel > pulseThreshold && Math.random() < 0.0002) {
+          pulseData[pulseIndex] = 1.0;
         }
 
-        // Pulse logic
-        if (instrumentsLevel > pulseThreshold && Math.random() < 0.000375) {
-          star.pulseAmount = 1.0;
+        if (pulseData[pulseIndex] > 0) {
+          pulseData[pulseIndex] -= pulseData[pulseIndex + 1];
+          if (pulseData[pulseIndex] < 0) pulseData[pulseIndex] = 0;
         }
 
-        if (star.pulseAmount > 0) {
-          star.pulseAmount = Math.max(0, star.pulseAmount - star.pulseDecay);
-        }
+        // Move star (batch position update)
+        positions[baseIndex] += positions[baseIndex + 2];     // x += vx
+        positions[baseIndex + 1] += positions[baseIndex + 3]; // y += vy
 
-        // Move star
-        star.x += star.vx;
-        star.y += star.vy;
+        // OPTIMIZATION: Faster boundary wrapping using typed array operations
+        if (positions[baseIndex] < 0) positions[baseIndex] = canvasWidth;
+        else if (positions[baseIndex] > canvasWidth) positions[baseIndex] = 0;
 
-        // Wrap around edges
-        if (star.x < 0) star.x = starsCanvas.width;
-        if (star.x > starsCanvas.width) star.x = 0;
-        if (star.y < 0) star.y = starsCanvas.height;
-        if (star.y > starsCanvas.height) star.y = 0;
+        if (positions[baseIndex + 1] < 0) positions[baseIndex + 1] = canvasHeight;
+        else if (positions[baseIndex + 1] > canvasHeight) positions[baseIndex + 1] = 0;
 
-        // Apply tilt offset based on layer depth (parallax effect)
-        star.drawX = star.x + tiltOffsetX * layerDepth;
-        star.drawY = star.y + tiltOffsetY * layerDepth;
+        // Apply tilt offset and calculate draw positions
+        const drawX = positions[baseIndex] + tiltOffsetX * layerDepth;
+        const drawY = positions[baseIndex + 1] + tiltOffsetY * layerDepth;
 
         // Separate pulsing stars from normal stars for batched rendering
-        if (star.pulseAmount > 0) {
-          pulsingStars.push(star);
+        if (pulseData[pulseIndex] > 0) {
+          pulsingStars.push({ x: drawX, y: drawY, pulseAmount: pulseData[pulseIndex], vx: positions[baseIndex + 2], vy: positions[baseIndex + 3] });
         } else {
-          normalStars.push(star);
+          normalStars.push({ x: drawX, y: drawY, vx: positions[baseIndex + 2], vy: positions[baseIndex + 3] });
         }
-      });
+      }
 
       // Apply depth-based size scaling
       const depthScale = layer.scale;
 
-      // Batch render normal (non-pulsing) stars directly to main canvas
+      // OPTIMIZATION: Batch render normal (non-pulsing) stars with single beginPath
       if (normalStars.length > 0) {
         if (chromaticOffset !== 0) {
-          // Draw with chromatic aberration (individual stars)
+          // Draw with chromatic aberration (individual stars, but batched by color channel)
+          // Red channel batch
+          starsCtx.fillStyle = `rgba(255, 0, 0, ${layer.opacity * 0.4})`;
+          starsCtx.beginPath();
           normalStars.forEach((star) => {
-            const x = Math.floor(star.drawX);
-            const y = Math.floor(star.drawY);
-            drawStarWithChromatic(
-              x,
-              y,
-              layer.size * depthScale,
-              layer.opacity,
-              chromaticOffset,
-              isDropActive,
-              star.vx,
-              star.vy
-            );
+            const x = Math.floor(star.x + chromaticOffset);
+            const y = Math.floor(star.y);
+            starsCtx.moveTo(x + layer.size * depthScale, y);
+            starsCtx.arc(x, y, layer.size * depthScale, 0, Math.PI * 2);
           });
+          starsCtx.fill();
+
+          // Green channel batch
+          starsCtx.fillStyle = `rgba(0, 255, 0, ${layer.opacity * 0.4})`;
+          starsCtx.beginPath();
+          normalStars.forEach((star) => {
+            const x = Math.floor(star.x);
+            const y = Math.floor(star.y);
+            starsCtx.moveTo(x + layer.size * depthScale, y);
+            starsCtx.arc(x, y, layer.size * depthScale, 0, Math.PI * 2);
+          });
+          starsCtx.fill();
+
+          // Blue channel batch
+          starsCtx.fillStyle = `rgba(0, 0, 255, ${layer.opacity * 0.4})`;
+          starsCtx.beginPath();
+          normalStars.forEach((star) => {
+            const x = Math.floor(star.x - chromaticOffset);
+            const y = Math.floor(star.y);
+            starsCtx.moveTo(x + layer.size * depthScale, y);
+            starsCtx.arc(x, y, layer.size * depthScale, 0, Math.PI * 2);
+          });
+          starsCtx.fill();
         } else if (isDropActive) {
-          // Draw trails for normal stars (no chromatic aberration)
+          // Draw trails for normal stars (batched stroke)
           starsCtx.strokeStyle = `rgba(255, 255, 255, ${layer.opacity})`;
           starsCtx.lineWidth = layer.size * depthScale * 1.5;
           starsCtx.beginPath();
           normalStars.forEach((star) => {
-            // Use integer coordinates to avoid sub-pixel rendering overhead
-            const x = Math.floor(star.drawX);
-            const y = Math.floor(star.drawY);
-            const trailX = Math.floor(star.drawX - star.vx * 8);
-            const trailY = Math.floor(star.drawY - star.vy * 8);
+            const x = Math.floor(star.x);
+            const y = Math.floor(star.y);
+            const trailX = Math.floor(star.x - star.vx * 8);
+            const trailY = Math.floor(star.y - star.vy * 8);
             starsCtx.moveTo(x, y);
             starsCtx.lineTo(trailX, trailY);
           });
           starsCtx.stroke();
         } else {
-          // Draw dots for normal stars (no chromatic aberration)
+          // Draw dots for normal stars (single batched fill)
           starsCtx.fillStyle = `rgba(255, 255, 255, ${layer.opacity})`;
           starsCtx.beginPath();
           normalStars.forEach((star) => {
-            // Use integer coordinates to avoid sub-pixel rendering overhead
-            const x = Math.floor(star.drawX);
-            const y = Math.floor(star.drawY);
+            const x = Math.floor(star.x);
+            const y = Math.floor(star.y);
             starsCtx.moveTo(x + layer.size * depthScale, y);
             starsCtx.arc(x, y, layer.size * depthScale, 0, Math.PI * 2);
           });
@@ -601,34 +738,33 @@
       }
 
       // Render pulsing stars individually (they have different opacity/size)
-      pulsingStars.forEach((star) => {
-        const finalOpacity =
-          layer.opacity + star.pulseAmount * (1.0 - layer.opacity);
-        const sizeMultiplier = 1.0 + star.pulseAmount * 2.5;
-        const finalSize = layer.size * depthScale * sizeMultiplier;
+      if (pulsingStars.length > 0) {
+        pulsingStars.forEach((star) => {
+          const finalOpacity = layer.opacity + star.pulseAmount * (1.0 - layer.opacity);
+          const sizeMultiplier = 1.0 + star.pulseAmount * 2.5;
+          const finalSize = layer.size * depthScale * sizeMultiplier;
 
-        if (isDropActive) {
-          starsCtx.strokeStyle = `rgba(255, 255, 255, ${finalOpacity})`;
-          starsCtx.lineWidth = finalSize * 1.5;
-          starsCtx.beginPath();
-          // Use integer coordinates to avoid sub-pixel rendering overhead
-          const x = Math.floor(star.drawX);
-          const y = Math.floor(star.drawY);
-          const trailX = Math.floor(star.drawX - star.vx * 8);
-          const trailY = Math.floor(star.drawY - star.vy * 8);
-          starsCtx.moveTo(x, y);
-          starsCtx.lineTo(trailX, trailY);
-          starsCtx.stroke();
-        } else {
-          starsCtx.fillStyle = `rgba(255, 255, 255, ${finalOpacity})`;
-          starsCtx.beginPath();
-          // Use integer coordinates to avoid sub-pixel rendering overhead
-          const x = Math.floor(star.drawX);
-          const y = Math.floor(star.drawY);
-          starsCtx.arc(x, y, finalSize, 0, Math.PI * 2);
-          starsCtx.fill();
-        }
-      });
+          if (isDropActive) {
+            starsCtx.strokeStyle = `rgba(255, 255, 255, ${finalOpacity})`;
+            starsCtx.lineWidth = finalSize * 1.5;
+            starsCtx.beginPath();
+            const x = Math.floor(star.x);
+            const y = Math.floor(star.y);
+            const trailX = Math.floor(star.x - star.vx * 8);
+            const trailY = Math.floor(star.y - star.vy * 8);
+            starsCtx.moveTo(x, y);
+            starsCtx.lineTo(trailX, trailY);
+            starsCtx.stroke();
+          } else {
+            starsCtx.fillStyle = `rgba(255, 255, 255, ${finalOpacity})`;
+            starsCtx.beginPath();
+            const x = Math.floor(star.x);
+            const y = Math.floor(star.y);
+            starsCtx.arc(x, y, finalSize, 0, Math.PI * 2);
+            starsCtx.fill();
+          }
+        });
+      }
     });
 
     // =====================
@@ -650,96 +786,116 @@
       hyperspaceOpacity = hyperspaceLayer.maxOpacity;
     }
 
-    // Update and render hyperspace stars (flying towards screen)
-    hyperspaceLayer.stars.forEach((star) => {
-      // Normal mode: move star towards camera (decrease Z)
-      star.z -= hyperspaceLayer.speed;
+    // OPTIMIZATION: Batch process hyperspace stars using typed arrays
+    if (hyperspaceOpacity > 0) {
+      const positions = hyperspaceLayer.positions;
+      const canvasWidth = starsCanvas.width;
+      const canvasHeight = starsCanvas.height;
 
-      // Reset to far distance when it reaches camera
-      if (star.z <= hyperspaceLayer.minZ) {
-        star.z = hyperspaceLayer.maxZ;
-        // Randomize position for next cycle
-        star.x = (Math.random() - 0.5) * starsCanvas.width * 2;
-        star.y = (Math.random() - 0.5) * starsCanvas.height * 2;
+      starsCtx.fillStyle = `rgba(200, 220, 255, ${hyperspaceOpacity})`;
+      starsCtx.beginPath();
+
+      for (let i = 0; i < hyperspaceLayer.count; i++) {
+        const baseIndex = i * 3;
+
+        // Move star towards camera (decrease Z)
+        positions[baseIndex + 2] -= hyperspaceLayer.speed;
+
+        // Reset to far distance when it reaches camera
+        if (positions[baseIndex + 2] <= hyperspaceLayer.minZ) {
+          positions[baseIndex + 2] = hyperspaceLayer.maxZ;
+          // Randomize position for next cycle
+          positions[baseIndex] = (Math.random() - 0.5) * canvasWidth * 2;
+          positions[baseIndex + 1] = (Math.random() - 0.5) * canvasHeight * 2;
+        }
+
+        // Calculate perspective projection (closer = larger and more centered)
+        const scale = positions[baseIndex + 2]; // 0.1 to 1.0
+        const screenX = canvasWidth / 2 + positions[baseIndex] * scale;
+        const screenY = canvasHeight / 2 + positions[baseIndex + 1] * scale;
+
+        // Only draw if on screen
+        if (
+          screenX >= -10 &&
+          screenX <= canvasWidth + 10 &&
+          screenY >= -10 &&
+          screenY <= canvasHeight + 10
+        ) {
+          // Size DECREASES as star gets closer (shrinks towards center for depth effect)
+          const size = 2.5 - (1 - positions[baseIndex + 2]) * 2; // 2.5 to 0.5 pixels
+          // Opacity combines star depth with layer fade-in
+          const starDepthOpacity = 0.3 + (1 - positions[baseIndex + 2]) * 0.5; // 0.3 to 0.8 based on depth
+          const finalOpacity = starDepthOpacity * hyperspaceOpacity;
+
+          // Batch all arcs in single path
+          const x = Math.floor(screenX);
+          const y = Math.floor(screenY);
+          starsCtx.moveTo(x + size, y);
+          starsCtx.arc(x, y, size, 0, Math.PI * 2);
+        }
       }
-
-      // Calculate perspective projection (closer = larger and more centered)
-      const scale = star.z; // 0.1 to 1.0
-      const screenX = starsCanvas.width / 2 + star.x * scale;
-      const screenY = starsCanvas.height / 2 + star.y * scale;
-
-      // Only draw if on screen and hyperspace is visible
-      if (
-        hyperspaceOpacity > 0 &&
-        screenX >= -10 &&
-        screenX <= starsCanvas.width + 10 &&
-        screenY >= -10 &&
-        screenY <= starsCanvas.height + 10
-      ) {
-        // Size DECREASES as star gets closer (shrinks towards center for depth effect)
-        const size = 2.5 - (1 - star.z) * 2; // 2.5 to 0.5 pixels (shrinks as Z decreases)
-        // Opacity combines star depth with layer fade-in
-        const starDepthOpacity = 0.3 + (1 - star.z) * 0.5; // 0.3 to 0.8 based on depth
-        const finalOpacity = starDepthOpacity * hyperspaceOpacity; // Apply layer opacity
-
-        starsCtx.fillStyle = `rgba(200, 220, 255, ${finalOpacity})`;
-        starsCtx.beginPath();
-        const x = Math.floor(screenX);
-        const y = Math.floor(screenY);
-        starsCtx.arc(x, y, size, 0, Math.PI * 2);
-        starsCtx.fill();
-      }
-    });
+      starsCtx.fill();
+    }
 
     // Update and render reverse direction stars (flying away from screen, 1:03.76 to 2:07)
-    reverseDirectionLayer.stars.forEach((star) => {
-      // Move star AWAY from camera (increase Z)
-      star.z += reverseDirectionLayer.speed;
+    let reverseOpacity = 0;
+    if (
+      currentTime >= reverseDirectionLayer.fadeInStart &&
+      currentTime < reverseDirectionLayer.fadeOutStart
+    ) {
+      reverseOpacity = reverseDirectionLayer.maxOpacity;
+    }
 
-      // Reset to close distance when it goes too far
-      if (star.z >= reverseDirectionLayer.maxZ) {
-        star.z = reverseDirectionLayer.minZ;
-        // Randomize position for next cycle
-        star.x = (Math.random() - 0.5) * starsCanvas.width * 2;
-        star.y = (Math.random() - 0.5) * starsCanvas.height * 2;
+    // OPTIMIZATION: Batch process reverse direction stars using typed arrays
+    if (reverseOpacity > 0) {
+      const positions = reverseDirectionLayer.positions;
+      const canvasWidth = starsCanvas.width;
+      const canvasHeight = starsCanvas.height;
+
+      starsCtx.fillStyle = `rgba(200, 220, 255, ${reverseOpacity})`;
+      starsCtx.beginPath();
+
+      for (let i = 0; i < reverseDirectionLayer.count; i++) {
+        const baseIndex = i * 3;
+
+        // Move star AWAY from camera (increase Z)
+        positions[baseIndex + 2] += reverseDirectionLayer.speed;
+
+        // Reset to close distance when it goes too far
+        if (positions[baseIndex + 2] >= reverseDirectionLayer.maxZ) {
+          positions[baseIndex + 2] = reverseDirectionLayer.minZ;
+          // Randomize position for next cycle
+          positions[baseIndex] = (Math.random() - 0.5) * canvasWidth * 2;
+          positions[baseIndex + 1] = (Math.random() - 0.5) * canvasHeight * 2;
+        }
+
+        // Calculate perspective projection
+        const scale = positions[baseIndex + 2];
+        const screenX = canvasWidth / 2 + positions[baseIndex] * scale;
+        const screenY = canvasHeight / 2 + positions[baseIndex + 1] * scale;
+
+        // Only draw if on screen
+        if (
+          screenX >= -10 &&
+          screenX <= canvasWidth + 10 &&
+          screenY >= -10 &&
+          screenY <= canvasHeight + 10
+        ) {
+          // Size DECREASES as star gets closer (shrinks towards center for depth effect)
+          const size = 2.5 - (1 - positions[baseIndex + 2]) * 2;
+          // Opacity combines star depth with layer opacity
+          const starDepthOpacity = 0.3 + (1 - positions[baseIndex + 2]) * 0.5;
+          const finalOpacity = starDepthOpacity * reverseOpacity;
+
+          // Batch all arcs in single path
+          const x = Math.floor(screenX);
+          const y = Math.floor(screenY);
+          starsCtx.moveTo(x + size, y);
+          starsCtx.arc(x, y, size, 0, Math.PI * 2);
+        }
       }
-
-      // Calculate reverse direction layer opacity
-      let reverseOpacity = 0;
-      if (
-        currentTime >= reverseDirectionLayer.fadeInStart &&
-        currentTime < reverseDirectionLayer.fadeOutStart
-      ) {
-        reverseOpacity = reverseDirectionLayer.maxOpacity;
-      }
-
-      // Calculate perspective projection
-      const scale = star.z;
-      const screenX = starsCanvas.width / 2 + star.x * scale;
-      const screenY = starsCanvas.height / 2 + star.y * scale;
-
-      // Only draw if on screen and reverse layer is visible
-      if (
-        reverseOpacity > 0 &&
-        screenX >= -10 &&
-        screenX <= starsCanvas.width + 10 &&
-        screenY >= -10 &&
-        screenY <= starsCanvas.height + 10
-      ) {
-        // Size DECREASES as star gets closer (shrinks towards center for depth effect)
-        const size = 2.5 - (1 - star.z) * 2;
-        // Opacity combines star depth with layer opacity
-        const starDepthOpacity = 0.3 + (1 - star.z) * 0.5;
-        const finalOpacity = starDepthOpacity * reverseOpacity;
-
-        starsCtx.fillStyle = `rgba(200, 220, 255, ${finalOpacity})`;
-        starsCtx.beginPath();
-        const x = Math.floor(screenX);
-        const y = Math.floor(screenY);
-        starsCtx.arc(x, y, size, 0, Math.PI * 2);
-        starsCtx.fill();
-      }
-    });
+      starsCtx.fill();
+    }
 
     // Reset filter after all layers are drawn
     starsCtx.filter = "none";
