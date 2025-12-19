@@ -235,7 +235,7 @@ body.glow-active::after {
   transition: opacity 0.0125s ease-out;
   /* cursor: pointer; */
   letter-spacing: 0.125px;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 #coded-by-credit:hover {
@@ -257,9 +257,17 @@ body.glow-active::after {
   letter-spacing: 0.5px;
 }
 
+#hesh-credit {
+  font-family: sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
 #sorsari-credit a,
 #yedgar-credit a,
-#terrorhythm-credit a {
+#terrorhythm-credit a,
+#hesh-credit a {
   color: #fff;
   letter-spacing: 0px;
   text-decoration: none;
@@ -274,7 +282,8 @@ body.glow-active::after {
 
 #sorsari-credit a:hover,
 #yedgar-credit a:hover,
-#terrorhythm-credit a:hover {
+#terrorhythm-credit a:hover,
+#hesh-credit a:hover {
   font-weight: BOLD;
   animation: pulse 1s infinite;
   z-index: 10005;

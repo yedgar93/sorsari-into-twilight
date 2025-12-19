@@ -1184,7 +1184,9 @@ function initAudio() {
 
   // Try to autoplay
   if (shouldAutoplay || isReplayingFromSession) {
-    console.log("Autoplay enabled from replay - waiting for assets then starting");
+    console.log(
+      "Autoplay enabled from replay - waiting for assets then starting"
+    );
     // Clear the replay flag
     sessionStorage.removeItem("isReplaying");
     // Wait for assets to load before attempting autoplay
@@ -1258,7 +1260,7 @@ function initAudio() {
 
   // Add beep sound to credit links
   const creditLinks = document.querySelectorAll(
-    "#sorsari-credit a, #yedgar-credit a, #terrorhythm-credit a"
+    "#sorsari-credit a, #yedgar-credit a, #terrorhythm-credit a, #hesh-credit a"
   );
   console.log("[Beep] Found", creditLinks.length, "credit links");
   creditLinks.forEach((link) => {
@@ -1363,7 +1365,7 @@ function initAudio() {
     // This preserves the user gesture context better on mobile
     setTimeout(() => {
       const url = new URL(window.location);
-      url.searchParams.set('autoplay', 'true');
+      url.searchParams.set("autoplay", "true");
       window.location.href = url.toString();
     }, 850);
   };
